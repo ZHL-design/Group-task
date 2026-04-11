@@ -4,18 +4,18 @@
 
 #define INIT_CAPACITY 10
 
-// ¶¨ÒåÎÄ±¾½á¹¹Ìå
+// å®šä¹‰æ–‡æœ¬ç»“æž„ä½“ã€‚
 typedef struct {
-    char** lines;      // ×Ö·û´®Êý×éÖ¸Õë
-    int line_count;    // ×ÜÐÐÊý
-    int capacity;      // Êý×éÈÝÁ¿
+    char** lines;      // å­—ç¬¦ä¸²æ•°ç»„æŒ‡é’ˆ
+    int line_count;    // æ€»è¡Œæ•°
+    int capacity;      // æ•°ç»„å®¹é‡
 } Text;
 
-// ´´½¨ÎÄ±¾¶ÔÏó
+// åˆ›å»ºæ–‡æœ¬å¯¹è±¡
 Text* create_text() {
     Text* new_text = (Text*)malloc(sizeof(Text));
     if (new_text == NULL) {
-        printf("ÄÚ´æ·ÖÅäÊ§°Ü£¡\n");
+        printf("å†…å­˜åˆ†é…å¤±è´¥ï¼\n");
         return NULL;
     }
     
@@ -35,16 +35,16 @@ Text* create_text() {
     return new_text;
 }
 
-// ¼ÓÔØÎÄ¼þ
+// åŠ è½½æ–‡ä»¶
 void load_file(Text* text, const char* filename) {
     if (text == NULL) {
-        printf("Text¶ÔÏóÎª¿Õ£¡\n");
+        printf("Textå¯¹è±¡ä¸ºç©ºï¼\n");
         return;
     }
     
     FILE* file = fopen(filename, "r");
     if (file == NULL) {
-        printf("ÎÞ·¨´ò¿ªÎÄ¼þ£º%s\n", filename);
+        printf("æ— æ³•æ‰“å¼€æ–‡ä»¶ï¼š%s\n", filename);
         return;
     }
     
@@ -54,14 +54,14 @@ void load_file(Text* text, const char* filename) {
             int new_capacity = text->capacity * 2;
             char** new_lines = (char**)realloc(text->lines, sizeof(char*) * new_capacity);
             if (new_lines == NULL) {
-                printf("ÄÚ´æÀ©ÈÝÊ§°Ü£¡\n");
+                printf("å†…å­˜æ‰©å®¹å¤±è´¥ï¼\n");
                 break;
             }
             text->lines = new_lines;
             text->capacity = new_capacity;
         }
         
-        // È¥µô»»ÐÐ·û
+        // åŽ»æŽ‰æ¢è¡Œç¬¦
         size_t len = strlen(buffer);
         if (len > 0 && buffer[len-1] == '\n') {
             buffer[len-1] = '\0';
@@ -69,7 +69,7 @@ void load_file(Text* text, const char* filename) {
         
         char* line_copy = (char*)malloc(strlen(buffer) + 1);
         if (line_copy == NULL) {
-            printf("ÐÐÄÚ´æ·ÖÅäÊ§°Ü£¡\n");
+            printf("è¡Œå†…å­˜åˆ†é…å¤±è´¥ï¼\n");
             break;
         }
         strcpy(line_copy, buffer);
@@ -78,24 +78,24 @@ void load_file(Text* text, const char* filename) {
     }
     
     fclose(file);
-    printf("ÎÄ¼þ¼ÓÔØ³É¹¦£¬¹² %d ÐÐ¡£\n", text->line_count);
+    printf("æ–‡ä»¶åŠ è½½æˆåŠŸï¼Œå…± %d è¡Œã€‚\n", text->line_count);
 }
 
-// ÏÔÊ¾ÎÄ±¾
+// æ˜¾ç¤ºæ–‡æœ¬
 void display_text(const Text* text) {
     if (text == NULL || text->line_count == 0) {
-        printf("ÎÄ±¾Îª¿Õ£¡\n");
+        printf("æ–‡æœ¬ä¸ºç©ºï¼\n");
         return;
     }
     
-    printf("=== ÎÄ±¾ÄÚÈÝ [%dÐÐ] ===\n", text->line_count);
+    printf("=== æ–‡æœ¬å†…å®¹ [%dè¡Œ] ===\n", text->line_count);
     for (int i = 0; i < text->line_count; i++) {
         printf("%3d: %s\n", i+1, text->lines[i]);
     }
-    printf("=== ½áÊø ===\n");
+    printf("=== ç»“æŸ ===\n");
 }
 
-// ÊÍ·ÅÄÚ´æ
+// é‡Šæ”¾å†…å­˜
 void free_text(Text* text) {
     if (text == NULL) return;
     
@@ -107,10 +107,10 @@ void free_text(Text* text) {
     
     free(text->lines);
     free(text);
-    printf("ÄÚ´æÒÑÊÍ·Å¡£\n");
+    printf("å†…å­˜å·²é‡Šæ”¾ã€‚\n");
 }
 
-// Ö÷º¯Êý
+// ä¸»å‡½æ•°
 int main() {
     Text* my_text = create_text();
     if (my_text == NULL) {
