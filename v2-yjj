@@ -1,0 +1,286 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define INIT_CAPACITY 10
+#define LINE_BUFFER_SIZE 1024
+#define UNDO_STACK_SIZE 100  // 最多支持100次撤销
+
+// 文本结构体
+typedef struct {
+    char** lines;
+    int line_count;
+    int capacity;
+} Text;
+
+// 撤销栈节点：保存被删除的行内容和位置
+typedef struct {
+    char* line_content;
+    int line_index;
+} UndoState;
+
+// 撤销栈结构体
+typedef struct {
+    UndoState stack[UNDO_STACK_SIZE];
+    int top;
+} UndoStack;
+
+// ---------------------- 基础函数（来自V1优化版） ----------------------
+Text* create_text() {
+    Text* new_text = (Text*)malloc(sizeof(Text));
+    if (new_text == NULL) {
+        perror("malloc for Text failed");
+        return NULL;
+    }
+    
+    new_text->line_count = 0;
+    new_text->capacity = INIT_CAPACITY;
+    new_text->lines = (char**)calloc(new_text->capacity, sizeof(char*));
+    if (new_text->lines == NULL) {
+        perror("calloc for lines failed");
+        free(new_text);
+        return NULL;
+    }
+    return new_text;
+}
+
+void load_file(Text* text, const char* filename) {
+    if (text == NULL || filename == NULL) {
+        fprintf(stderr, "load_file: Invalid parameters\n");
+        return;
+    }
+    
+    FILE* file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("fopen failed");
+        return;
+    }
+    
+    char buffer[LINE_BUFFER_SIZE];
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        if (text->line_count >= text->capacity) {
+            int new_capacity = text->capacity * 2;
+            char** new_lines = (char**)realloc(text->lines, sizeof(char*) * new_capacity);
+            if (new_lines == NULL) {
+                perror("realloc failed");
+                break;
+            }
+            text->lines = new_lines;
+            text->capacity = new_capacity;
+        }
+        
+        size_t len = strlen(buffer);
+        if (len > 0) {
+            if (buffer[len-1] == '\n') {
+                buffer[len-1] = '\0';
+                len--;
+            }
+            if (len > 0 && buffer[len-1] == '\r') {
+                buffer[len-1] = '\0';
+            }
+        }
+        
+        char* line_copy = strdup(buffer);
+        if (line_copy == NULL) {
+            perror("strdup failed");
+            break;
+        }
+        text->lines[text->line_count] = line_copy;
+        text->line_count++;
+    }
+    
+    fclose(file);
+    printf("文件加载成功，共 %d 行。\n", text->line_count);
+}
+
+void display_text(const Text* text) {
+    if (text == NULL || text->line_count == 0) {
+        printf("文本为空！\n");
+        return;
+    }
+    
+    printf("=== 文本内容 [%d行] ===\n", text->line_count);
+    for (int i = 0; i < text->line_count; i++) {
+        printf("%3d: %s\n", i+1, text->lines[i]);
+    }
+    printf("=== 结束 ===\n");
+}
+
+void free_text(Text* text) {
+    if (text == NULL) return;
+    
+    for (int i = 0; i < text->line_count; i++) {
+        free(text->lines[i]);
+    }
+    free(text->lines);
+    free(text);
+}
+
+// ---------------------- V2 新增：撤销栈相关 ----------------------
+// 初始化撤销栈
+UndoStack* create_undo_stack() {
+    UndoStack* stack = (UndoStack*)malloc(sizeof(UndoStack));
+    if (stack == NULL) {
+        perror("malloc for UndoStack failed");
+        return NULL;
+    }
+    stack->top = -1;
+    return stack;
+}
+
+// 保存状态到撤销栈
+int save_state(UndoStack* stack, const char* line_content, int line_index) {
+    if (stack == NULL || stack->top >= UNDO_STACK_SIZE - 1) {
+        printf("撤销栈已满，无法保存更多状态！\n");
+        return 0;
+    }
+    
+    stack->top++;
+    stack->stack[stack->top].line_index = line_index;
+    stack->stack[stack->top].line_content = strdup(line_content);
+    if (stack->stack[stack->top].line_content == NULL) {
+        perror("strdup failed");
+        stack->top--;
+        return 0;
+    }
+    return 1;
+}
+
+// 从撤销栈恢复状态（弹出）
+UndoState pop_state(UndoStack* stack) {
+    UndoState empty_state = {NULL, -1};
+    if (stack == NULL || stack->top < 0) {
+        printf("没有可撤销的操作！\n");
+        return empty_state;
+    }
+    
+    UndoState state = stack->stack[stack->top];
+    stack->top--;
+    return state;
+}
+
+// 释放撤销栈
+void free_undo_stack(UndoStack* stack) {
+    if (stack == NULL) return;
+    for (int i = 0; i <= stack->top; i++) {
+        free(stack->stack[i].line_content);
+    }
+    free(stack);
+}
+
+// ---------------------- V2 新增：删除与撤销 ----------------------
+// 删除指定行（从1开始计数）
+int delete_line(Text* text, UndoStack* stack, int line_num) {
+    if (text == NULL || stack == NULL || line_num < 1 || line_num > text->line_count) {
+        printf("无效的行号！\n");
+        return 0;
+    }
+    
+    int index = line_num - 1;
+    // 保存删除前的状态到栈
+    if (!save_state(stack, text->lines[index], index)) {
+        printf("无法保存撤销状态，删除失败！\n");
+        return 0;
+    }
+    
+    // 释放被删除的行内存
+    free(text->lines[index]);
+    
+    // 移动后面的行，覆盖被删除的位置
+    for (int i = index; i < text->line_count - 1; i++) {
+        text->lines[i] = text->lines[i + 1];
+    }
+    
+    text->line_count--;
+    printf("已删除第 %d 行。\n", line_num);
+    return 1;
+}
+
+// 撤销删除操作
+int undo_delete(Text* text, UndoStack* stack) {
+    if (text == NULL || stack == NULL || stack->top < 0) {
+        printf("没有可撤销的操作！\n");
+        return 0;
+    }
+    
+    UndoState state = pop_state(stack);
+    if (state.line_content == NULL || state.line_index < 0) {
+        return 0;
+    }
+    
+    // 扩容检查
+    if (text->line_count >= text->capacity) {
+        int new_capacity = text->capacity * 2;
+        char** new_lines = (char**)realloc(text->lines, sizeof(char*) * new_capacity);
+        if (new_lines == NULL) {
+            perror("realloc failed");
+            free(state.line_content);
+            return 0;
+        }
+        text->lines = new_lines;
+        text->capacity = new_capacity;
+    }
+    
+    // 从后往前移动行，腾出插入位置
+    for (int i = text->line_count; i > state.line_index; i--) {
+        text->lines[i] = text->lines[i - 1];
+    }
+    
+    // 恢复被删除的行
+    text->lines[state.line_index] = state.line_content;
+    text->line_count++;
+    printf("撤销成功，已恢复第 %d 行。\n", state.line_index + 1);
+    return 1;
+}
+
+// ---------------------- 主函数（V2版本） ----------------------
+int main() {
+    Text* my_text = create_text();
+    UndoStack* undo_stack = create_undo_stack();
+    if (my_text == NULL || undo_stack == NULL) {
+        free_text(my_text);
+        free_undo_stack(undo_stack);
+        return 1;
+    }
+    
+    // 加载文件
+    load_file(my_text, "input.txt");
+    display_text(my_text);
+    
+    // 示例操作：删除、撤销
+    int choice, line_num;
+    do {
+        printf("\n--- 操作菜单 ---\n");
+        printf("1. 显示文本\n");
+        printf("2. 删除指定行\n");
+        printf("3. 撤销删除\n");
+        printf("0. 退出\n");
+        printf("请输入选择：");
+        scanf("%d", &choice);
+        
+        switch (choice) {
+            case 1:
+                display_text(my_text);
+                break;
+            case 2:
+                printf("请输入要删除的行号：");
+                scanf("%d", &line_num);
+                delete_line(my_text, undo_stack, line_num);
+                break;
+            case 3:
+                undo_delete(my_text, undo_stack);
+                break;
+            case 0:
+                printf("退出程序...\n");
+                break;
+            default:
+                printf("无效选择，请重试！\n");
+        }
+    } while (choice != 0);
+    
+    // 释放资源
+    free_text(my_text);
+    free_undo_stack(undo_stack);
+    printf("程序结束，内存已释放。\n");
+    return 0;
+}
