@@ -84,7 +84,7 @@ void load_file(Text* text, const char* filename) {
 // 显示文本
 void display_text(const Text* text) {
     if (text == NULL || text->line_count == 0) {
-        printf("文本为空！\n");
+        printf("文本为空.！\n");
         return;
     }
     
