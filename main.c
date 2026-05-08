@@ -249,7 +249,7 @@ int undo(Text* t, UndoStack* s) {
     int line_no;
     
     while (1) {
-        show_menu();
+        printf("\n命令: d <行号>(删除), u(撤销), s(显示), q(退出): ");
         scanf("%s", cmd);
         
         if (strcmp(cmd, "d") == 0) {
@@ -272,12 +272,11 @@ int undo(Text* t, UndoStack* s) {
             break;
         }
         else {
-            printf("未知命令！可用命令: d, u, s, q\n");
+            printf("未知命令！\n");
         }
         while (getchar() != '\n');
     }
     
-    // 释放内存
     free_undo_stack(&undo_stack);
     free_text(my_text);
     
