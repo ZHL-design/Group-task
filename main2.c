@@ -241,7 +241,7 @@ int main() {
         while (getchar() != '\n');
     }
 
-  
+  free_undo_stack(&undo_stack);
     free_text(my_text);
     return 0;
 }
