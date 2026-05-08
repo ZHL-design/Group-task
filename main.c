@@ -118,7 +118,7 @@ void free_text(Text* text) {
     printf("内存已释放。\n");
 }
 
-int main() {void init_undo_stack(UndoStack* s) {
+void init_undo_stack(UndoStack* s) {
     s->top = -1;
     for (int i = 0; i < MAX_UNDO; i++) {
         s->records[i].content = NULL;
