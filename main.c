@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#define MAX_UNDO 50
 #define INIT_CAPACITY 10
 
 // 定义文本结构体。
@@ -10,7 +10,15 @@ typedef struct {
     int line_count;    // 总行数
     int capacity;      // 数组容量
 } Text;
+typedef struct {
+    int line_index;     // 被删除行的原始索引
+    char* content;      // 被删除行的内容
+} UndoRecord;
 
+typedef struct {
+    UndoRecord records[MAX_UNDO];
+    int top;            // 栈顶指针，-1 表示空
+} UndoStack;
 // 创建文本对象
 Text* create_text() {
     Text* new_text = (Text*)malloc(sizeof(Text));
@@ -110,15 +118,167 @@ void free_text(Text* text) {
     printf("内存已释放。\n");
 }
 
-// 主函数
-int main() {
+int main() {void init_undo_stack(UndoStack* s) {
+    s->top = -1;
+    for (int i = 0; i < MAX_UNDO; i++) {
+        s->records[i].content = NULL;
+    }
+}
+
+void free_undo_stack(UndoStack* s) {
+    for (int i = 0; i <= s->top; i++) {
+        if (s->records[i].content) {
+            free(s->records[i].content);
+        }
+    }
+}
+
+int save_state(Text* t, UndoStack* s, int line_no) {
+    if (s->top >= MAX_UNDO - 1) {
+        printf("撤销栈已满，无法保存\n");
+        return 0;
+    }
+    
+    s->top++;
+    s->records[s->top].line_index = line_no;
+    s->records[s->top].content = (char*)malloc(strlen(t->lines[line_no]) + 1);
+    
+    if (!s->records[s->top].content) {
+        s->top--;
+        return 0;
+    }
+    
+    strcpy(s->records[s->top].content, t->lines[line_no]);
+    return 1;
+}
+
+
+
+int delete_line(Text* t, int line_no, UndoStack* s) {
+    int idx = line_no - 1;
+    
+    if (idx < 0 || idx >= t->line_count) {
+        printf("行号无效！有效范围：1~%d\n", t->line_count);
+        return 0;
+    }
+    
+    if (!save_state(t, s, idx)) {
+        return 0;
+    }
+    
+    free(t->lines[idx]);
+    for (int i = idx; i < t->line_count - 1; i++) {
+        t->lines[i] = t->lines[i+1];
+    }
+    
+    t->line_count--;
+    printf("已删除第 %d 行\n", line_no);
+    return 1;
+}
+
+int undo(Text* t, UndoStack* s) {
+    if (s->top < 0) {
+        printf("没有可撤销的操作\n");
+        return 0;
+    }
+    
+    UndoRecord* last = &s->records[s->top];
+    int restore_idx = last->line_index;
+    
+    if (restore_idx < 0 || restore_idx > t->line_count) {
+        printf("撤销失败：保存的行号已无效\n");
+        free(last->content);
+        s->top--;
+        return 0;
+    }
+    
+    if (t->line_count + 1 > t->capacity) {
+        int new_cap = t->capacity * 2;
+        char** new_lines = (char**)realloc(t->lines, sizeof(char*) * new_cap);
+        if (!new_lines) {
+            printf("内存不足，撤销失败\n");
+            return 0;
+        }
+        t->lines = new_lines;
+        t->capacity = new_cap;
+    }
+    
+    for (int i = t->line_count; i > restore_idx; i--) {
+        t->lines[i] = t->lines[i-1];
+    }
+    
+    t->lines[restore_idx] = (char*)malloc(strlen(last->content) + 1);
+    if (!t->lines[restore_idx]) {
+        printf("内存分配失败\n");
+        return 0;
+    }
+    strcpy(t->lines[restore_idx], last->content);
+    t->line_count++;
+    
+    free(last->content);
+    s->top--;
+    
+    printf("撤销成功，已恢复第 %d 行\n", restore_idx + 1);
+    return 1;
+}
+   int main(){
     Text* my_text = create_text();
     if (my_text == NULL) {
         return 1;
     }
     
-    load_file(my_text, "input.txt");
+    // 初始化撤销栈
+    UndoStack undo_stack;
+    init_undo_stack(&undo_stack);
+    
+    // 加载文件
+    char filename[100];
+    printf("请输入文件名（默认 input.txt）: ");
+    fgets(filename, sizeof(filename), stdin);
+    filename[strcspn(filename, "\n")] = '\0';
+    
+    if (strlen(filename) == 0) {
+        strcpy(filename, "input.txt");
+    }
+    
+    load_file(my_text, filename);
     display_text(my_text);
+    
+    // 主循环
+    char cmd[10];
+    int line_no;
+    
+    while (1) {
+        show_menu();
+        scanf("%s", cmd);
+        
+        if (strcmp(cmd, "d") == 0) {
+            if (scanf("%d", &line_no) != 1) {
+                printf("请输入数字行号！\n");
+                while (getchar() != '\n');
+                continue;
+            }
+            delete_line(my_text, line_no, &undo_stack);
+            display_text(my_text);
+        }
+        else if (strcmp(cmd, "u") == 0) {
+            undo(my_text, &undo_stack);
+            display_text(my_text);
+        }
+        else if (strcmp(cmd, "s") == 0) {
+            display_text(my_text);
+        }
+        else if (strcmp(cmd, "q") == 0) {
+            break;
+        }
+        else {
+            printf("未知命令！可用命令: d, u, s, q\n");
+        }
+        while (getchar() != '\n');
+    }
+    
+    // 释放内存
+    free_undo_stack(&undo_stack);
     free_text(my_text);
     
     return 0;
