@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define MAX_UNDO 50
 #define INIT_CAPACITY 10
@@ -256,7 +257,67 @@ int undo(Text* t, UndoStack* s) {
     return 1;
 }
 
-// ---------------------- 主函数（V2交互界面） ----------------------
+// ---------------------- V3 新增核心函数 ----------------------
+// 搜索文本：查找包含指定关键词的行并显示行号
+void find_text(const Text* text, const char* keyword) {
+    if (text == NULL || text->line_count == 0) {
+        printf("文本为空，无法搜索！\n");
+        return;
+    }
+    if (keyword == NULL || strlen(keyword) == 0) {
+        printf("关键词不能为空！\n");
+        return;
+    }
+
+    int found_count = 0;
+    printf("=== 搜索结果（关键词：%s） ===\n", keyword);
+    for (int i = 0; i < text->line_count; i++) {
+        // 字符串匹配：检查当前行是否包含关键词
+        if (strstr(text->lines[i], keyword) != NULL) {
+            printf("行号 %3d: %s\n", i+1, text->lines[i]);
+            found_count++;
+        }
+    }
+    printf("共找到 %d 处匹配\n", found_count);
+}
+
+// 统计文本总字符数（不含换行符）
+long count_total_chars(const Text* text) {
+    if (text == NULL || text->line_count == 0) {
+        return 0;
+    }
+
+    long total = 0;
+    for (int i = 0; i < text->line_count; i++) {
+        total += strlen(text->lines[i]);
+    }
+    return total;
+}
+
+// 统计文本总行数
+int count_total_lines(const Text* text) {
+    if (text == NULL) {
+        return 0;
+    }
+    return text->line_count;
+}
+
+// 显示文本统计信息
+void display_stats(const Text* text) {
+    if (text == NULL || text->line_count == 0) {
+        printf("文本为空，无统计信息！\n");
+        return;
+    }
+
+    int lines = count_total_lines(text);
+    long chars = count_total_chars(text);
+    printf("=== 文本统计信息 ===\n");
+    printf("总行数：%d\n", lines);
+    printf("总字符数（不含换行）：%ld\n", chars);
+    printf("====================\n");
+}
+
+// ---------------------- 主函数（V3交互界面） ----------------------
 int main() {
     Text* my_text = create_text();
     if (my_text == NULL) {
@@ -283,12 +344,15 @@ int main() {
     // 主交互循环
     char cmd[10];
     int line_no;
+    char keyword[LINE_BUFFER_SIZE];
     
     while (1) {
         printf("\n--- 命令菜单 ---\n");
         printf("d <行号> : 删除指定行\n");
         printf("u       : 撤销上一次删除\n");
         printf("s       : 显示当前文本\n");
+        printf("f <关键词> : 搜索文本\n");
+        printf("t       : 显示文本统计信息\n");
         printf("q       : 退出程序\n");
         printf("请输入命令: ");
         
@@ -311,12 +375,20 @@ int main() {
         else if (strcmp(cmd, "s") == 0) {
             display_text(my_text);
         }
+        else if (strcmp(cmd, "f") == 0) {
+            // 读取关键词（支持带空格的关键词）
+            scanf(" %[^\n]", keyword);
+            find_text(my_text, keyword);
+        }
+        else if (strcmp(cmd, "t") == 0) {
+            display_stats(my_text);
+        }
         else if (strcmp(cmd, "q") == 0) {
             printf("退出程序...\n");
             break;
         }
         else {
-            printf("未知命令！请输入 d/u/s/q\n");
+            printf("未知命令！请输入 d/u/s/f/t/q\n");
         }
         // 清空输入缓冲区，为下一次输入做准备
         while (getchar() != '\n');
