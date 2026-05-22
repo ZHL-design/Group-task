@@ -221,6 +221,57 @@ int undo(Text* t, UndoStack* s) {
     printf("撤销成功，已恢复第 %d 行\n", restore_idx + 1);
     return 1;
 }
+void find_text(const Text* text, const char* pattern) {
+ if (text == NULL || text->line_count == 0) {
+        printf("文本为空，无法搜索。\n");
+        return;
+    }
+    
+    int found = 0;
+    printf("\n=== 搜索 \"%s\" 的结果 ===\n", pattern);
+    for (int i = 0; i < text->line_count; i++) {
+        if (strstr(text->lines[i], pattern) != NULL) {
+            printf("第 %d 行: %s\n", i+1, text->lines[i]);
+            found++;
+        }
+    }
+    if (!found) {
+        printf("未找到包含 \"%s\" 的行。\n", pattern);
+    }
+    printf("========================\n");
+}
+
+// 统计总字符数（不包括换行符，因为加载时已去掉换行）
+int count_total_chars(const Text* text) {   // +++ V3新增 +++
+    if (text == NULL || text->line_count == 0) {
+        return 0;
+    }
+    
+    int total = 0;
+    for (int i = 0; i < text->line_count; i++) {
+        total += strlen(text->lines[i]);
+    }
+    return total;
+}
+
+// 统计总行数（直接返回行数）
+int count_total_lines(const Text* text) {   // +++ V3新增 +++
+    if (text == NULL) return 0;
+    return text->line_count;
+}
+
+// 显示统计信息（封装调用）
+void show_statistics(const Text* text) {   // +++ V3新增 +++
+    int lines = count_total_lines(text);
+    int chars = count_total_chars(text);
+    printf("\n========== 统计信息 ==========\n");
+    printf("总行数: %d\n", lines);
+    printf("总字符数: %d (不含换行符)\n", chars);
+    if (lines > 0) {
+        printf("平均每行字符数: %.1f\n", (double)chars / lines);
+    }
+    printf("==============================\n");
+}
    int main(){
     Text* my_text = create_text();
     if (my_text == NULL) {
