@@ -298,9 +298,10 @@ void show_statistics(const Text* text) {   // +++ V3新增 +++
     // 主循环
     char cmd[10];
     int line_no;
-    
+    char search_str[256];
     while (1) {
-        printf("\n命令: d <行号>(删除), u(撤销), s(显示), q(退出): ");
+        
+        printf("\n命令: d <行号>(删除), u(撤销), s(显示), f <关键词>(搜索), c(统计), q(退出): ");
         scanf("%s", cmd);
         
         if (strcmp(cmd, "d") == 0) {
@@ -319,12 +320,27 @@ void show_statistics(const Text* text) {   // +++ V3新增 +++
         else if (strcmp(cmd, "s") == 0) {
             display_text(my_text);
         }
+        
+        else if (strcmp(cmd, "f") == 0) {
+            if (scanf("%255s", search_str) != 1) {
+                printf("请输入搜索关键词！\n");
+                while (getchar() != '\n');
+                continue;
+            }
+            find_text(my_text, search_str);
+        }
+        
+        else if (strcmp(cmd, "c") == 0) {
+            show_statistics(my_text);
+        }
         else if (strcmp(cmd, "q") == 0) {
             break;
         }
         else {
-            printf("未知命令！\n");
+            
+            printf("未知命令！可用命令: d, u, s, f, c, q\n");
         }
+        // 清空输入缓冲区
         while (getchar() != '\n');
     }
     
@@ -333,3 +349,4 @@ void show_statistics(const Text* text) {   // +++ V3新增 +++
     
     return 0;
 }
+
