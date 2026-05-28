@@ -1,4 +1,5 @@
-#include <stdio.h>
+
+   #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -6,6 +7,7 @@
 #define MAX_UNDO 50
 #define INIT_CAPACITY 10
 #define LINE_BUFFER_SIZE 1024
+#define MAX_WORDS 10000  // 最大统计单词数
 
 // 文本结构体：管理文件内容的动态数组
 typedef struct {
@@ -25,6 +27,12 @@ typedef struct {
     UndoRecord records[MAX_UNDO];
     int top;            // 栈顶指针，-1 表示栈空
 } UndoStack;
+
+// ---------------------- V4 新增：词频统计结构体 ----------------------
+typedef struct {
+    char word[64];   // 单词本身（最多63个字符）
+    int count;       // 出现次数
+} WordFreq;
 
 // ---------------------- 基础工具函数（来自V1） ----------------------
 // 创建并初始化文本对象
@@ -317,7 +325,112 @@ void display_stats(const Text* text) {
     printf("====================\n");
 }
 
-// ---------------------- 主函数（V3交互界面） ----------------------
+// ---------------------- V4 新增核心函数 ----------------------
+// 辅助函数：判断字符是否为单词分隔符（空格/标点）
+static int is_delimiter(char c) {
+    return isspace(c) || ispunct(c);
+}
+
+// 辅助函数：将单词转为小写，用于不区分大小写统计
+static void to_lower_str(char* str) {
+    for (; *str; str++) {
+        *str = tolower((unsigned char)*str);
+    }
+}
+
+// 统计词频：忽略大小写，按空格/标点分割单词
+int count_word_frequency(const Text* text, WordFreq freq[], int max_words) {
+    if (text == NULL || text->line_count == 0) {
+        return 0;
+    }
+
+    int word_count = 0;
+
+    for (int i = 0; i < text->line_count; i++) {
+        char line[LINE_BUFFER_SIZE];
+        strncpy(line, text->lines[i], sizeof(line) - 1);
+        line[sizeof(line) - 1] = '\0';
+
+        char* ptr = line;
+        while (*ptr) {
+            // 跳过分隔符
+            while (*ptr && is_delimiter(*ptr)) {
+                ptr++;
+            }
+            if (!*ptr) break;
+
+            // 提取单词
+            char word_buf[64];
+            int j = 0;
+            while (*ptr && !is_delimiter(*ptr) && j < sizeof(word_buf) - 1) {
+                word_buf[j++] = *ptr++;
+            }
+            word_buf[j] = '\0';
+
+            // 转为小写，统一统计
+            to_lower_str(word_buf);
+
+            // 查找单词是否已存在
+            int found = 0;
+            for (int k = 0; k < word_count; k++) {
+                if (strcmp(freq[k].word, word_buf) == 0) {
+                    freq[k].count++;
+                    found = 1;
+                    break;
+                }
+            }
+
+            // 不存在则新增
+            if (!found && word_count < max_words) {
+                strcpy(freq[word_count].word, word_buf);
+                freq[word_count].count = 1;
+                word_count++;
+            }
+        }
+    }
+
+    return word_count;
+}
+
+// qsort比较函数：按词频降序，词频相同则按字母升序
+static int compare_freq(const void* a, const void* b) {
+    const WordFreq* wa = (const WordFreq*)a;
+    const WordFreq* wb = (const WordFreq*)b;
+
+    if (wa->count != wb->count) {
+        return wb->count - wa->count;
+    } else {
+        return strcmp(wa->word, wb->word);
+    }
+}
+
+// 对词频数组按词频降序排序
+void sort_frequency(WordFreq freq[], int count) {
+    if (count <= 0) return;
+    qsort(freq, count, sizeof(WordFreq), compare_freq);
+}
+
+// 显示词频统计结果（前N个高频词）
+void display_word_freq(const WordFreq freq[], int count, int top_n) {
+    if (count == 0) {
+        printf("没有统计到任何单词！\n");
+        return;
+    }
+
+    if (top_n <= 0 || top_n > count) {
+        top_n = count;
+    }
+
+    printf("=== 词频统计（前%d个高频词） ===\n", top_n);
+    printf("  单词           出现次数\n");
+    printf("----------------------------\n");
+    for (int i = 0; i < top_n; i++) {
+        printf("%-15s %d\n", freq[i].word, freq[i].count);
+    }
+    printf("============================\n");
+}
+
+// ---------------------- 主函数（V4交互界面） ----------------------
 int main() {
     Text* my_text = create_text();
     if (my_text == NULL) {
@@ -353,6 +466,7 @@ int main() {
         printf("s       : 显示当前文本\n");
         printf("f <关键词> : 搜索文本\n");
         printf("t       : 显示文本统计信息\n");
+        printf("w [n]   : 显示词频统计（可选参数n，默认显示全部）\n");
         printf("q       : 退出程序\n");
         printf("请输入命令: ");
         
@@ -383,12 +497,24 @@ int main() {
         else if (strcmp(cmd, "t") == 0) {
             display_stats(my_text);
         }
+        else if (strcmp(cmd, "w") == 0) {
+            int top_n = 0;
+            // 尝试读取可选的n参数
+            if (scanf("%d", &top_n) != 1) {
+                top_n = 0; // 默认显示全部
+            }
+
+            WordFreq freq[MAX_WORDS] = {0};
+            int total_words = count_word_frequency(my_text, freq, MAX_WORDS);
+            sort_frequency(freq, total_words);
+            display_word_freq(freq, total_words, top_n);
+        }
         else if (strcmp(cmd, "q") == 0) {
             printf("退出程序...\n");
             break;
         }
         else {
-            printf("未知命令！请输入 d/u/s/f/t/q\n");
+            printf("未知命令！请输入 d/u/s/f/t/w/q\n");
         }
         // 清空输入缓冲区，为下一次输入做准备
         while (getchar() != '\n');
