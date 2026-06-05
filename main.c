@@ -1,513 +1,412 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define MAX_UNDO 50
+#include <ctype.h>
+
 #define INIT_CAPACITY 10
-#define MAX_WORD_LEN 256
-// å®šä¹‰æ–‡æœ¬ç»“æ„ä½“ã€‚
+#define STATE_STACK_INIT_CAPACITY 5
+#define MAX_WORD_LEN 50
+#define MAX_WORDS 1000
+
+/* ================= Êı¾İ½á¹¹ ================= */
+
+// ÎÄ±¾½á¹¹
 typedef struct {
-    char** lines;      // å­—ç¬¦ä¸²æ•°ç»„æŒ‡é’ˆ
-    int line_count;    // æ€»è¡Œæ•°
-    int capacity;      // æ•°ç»„å®¹é‡
+    char** lines;      // ĞĞÖ¸ÕëÊı×é
+    int line_count;    // ĞĞÊı
+    int capacity;      // ÈİÁ¿
 } Text;
-typedef struct {
-    int line_index;     // è¢«åˆ é™¤è¡Œçš„åŸå§‹ç´¢å¼•
-    char* content;      // è¢«åˆ é™¤è¡Œçš„å†…å®¹
-} UndoRecord;
 
+// ×´Ì¬½á¹¹£¨ÓÃÓÚ³·Ïú£©
 typedef struct {
-    UndoRecord records[MAX_UNDO];
-    int top;            // æ ˆé¡¶æŒ‡é’ˆï¼Œ-1 è¡¨ç¤ºç©º
-} UndoStack;
+    char** lines;
+    int line_count;
+    int capacity;
+} State;
 
+// ×´Ì¬Õ»
+typedef struct {
+    State* states;
+    int top;
+    int capacity;
+} StateStack;
+
+// µ¥´ÊÆµÂÊ½á¹¹£¨V4ĞÂÔö£©
 typedef struct {
     char word[MAX_WORD_LEN];
-    int freq;
+    int count;
 } WordFreq;
-// åˆ›å»ºæ–‡æœ¬å¯¹è±¡
+
+/* ================= º¯ÊıÉùÃ÷ ================= */
+
+Text* create_text();
+void load_file(Text* text, const char* filename);
+void display_text(const Text* text);
+void free_text(Text* text);
+
+StateStack* create_state_stack();
+void push_state(StateStack* stack, const Text* text);
+State* pop_state(StateStack* stack);
+void save_state(Text* text, StateStack* stack);
+void undo_delete(Text* text, StateStack* stack);
+void delete_line(Text* text, int line_num, StateStack* stack);
+void free_state_stack(StateStack* stack);
+void free_state(State* state);
+
+/* ================= V3 ¹¦ÄÜ ================= */
+int find_text(const Text* text, const char* keyword);
+int count_total_chars(const Text* text);
+int count_total_lines(const Text* text);
+
+/* ================= V4 ĞÂÔö¹¦ÄÜ ================= */
+void count_word_frequency(const Text* text, WordFreq* word_list, int* word_count);
+void sort_frequency(WordFreq* word_list, int word_count);
+void display_word_frequency(const WordFreq* word_list, int word_count);
+
+/* ================= »ù±¾¹¦ÄÜÊµÏÖ ================= */
+
 Text* create_text() {
-    Text* new_text = (Text*)malloc(sizeof(Text));
-    if (new_text == NULL) {
-        printf("å†…å­˜åˆ†é…å¤±è´¥ï¼\n");
+    Text* t = (Text*)malloc(sizeof(Text));
+    if (!t) return NULL;
+
+    t->line_count = 0;
+    t->capacity = INIT_CAPACITY;
+    t->lines = (char**)malloc(sizeof(char*) * t->capacity);
+    if (!t->lines) {
+        free(t);
         return NULL;
     }
-    
-    new_text->line_count = 0;
-    new_text->capacity = INIT_CAPACITY;
-    new_text->lines = (char**)malloc(sizeof(char*) * new_text->capacity);
-    
-    if (new_text->lines == NULL) {
-        free(new_text);
-        return NULL;
-    }
-    
-    for (int i = 0; i < new_text->capacity; i++) {
-        new_text->lines[i] = NULL;
-    }
-    
-    return new_text;
+
+    for (int i = 0; i < t->capacity; i++)
+        t->lines[i] = NULL;
+
+    return t;
 }
 
-// åŠ è½½æ–‡ä»¶
 void load_file(Text* text, const char* filename) {
-    if (text == NULL) {
-        printf("Textå¯¹è±¡ä¸ºç©ºï¼\n");
+    if (!text) return;
+
+    FILE* fp = fopen(filename, "r");
+    if (!fp) {
+        printf("ÎŞ·¨´ò¿ªÎÄ¼ş£º%s\n", filename);
         return;
     }
-    
-    FILE* file = fopen(filename, "r");
-    if (file == NULL) {
-        printf("æ— æ³•æ‰“å¼€æ–‡ä»¶ï¼š%s\n", filename);
-        return;
-    }
-    
-    char buffer[1024];
-    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+
+    char buf[1024];
+    while (fgets(buf, sizeof(buf), fp)) {
         if (text->line_count >= text->capacity) {
-            int new_capacity = text->capacity * 2;
-            char** new_lines = (char**)realloc(text->lines, sizeof(char*) * new_capacity);
-            if (new_lines == NULL) {
-                printf("å†…å­˜æ‰©å®¹å¤±è´¥ï¼\n");
-                break;
-            }
-            text->lines = new_lines;
-            text->capacity = new_capacity;
+            text->capacity *= 2;
+            text->lines = realloc(text->lines, sizeof(char*) * text->capacity);
         }
-        
-        // å»æ‰æ¢è¡Œç¬¦
-        size_t len = strlen(buffer);
-        if (len > 0 && buffer[len-1] == '\n') {
-            buffer[len-1] = '\0';
-        }
-        
-        char* line_copy = (char*)malloc(strlen(buffer) + 1);
-        if (line_copy == NULL) {
-            printf("è¡Œå†…å­˜åˆ†é…å¤±è´¥ï¼\n");
-            break;
-        }
-        strcpy(line_copy, buffer);
-        text->lines[text->line_count] = line_copy;
+
+        buf[strcspn(buf, "\n")] = '\0';
+        text->lines[text->line_count] = strdup(buf);
         text->line_count++;
     }
-    
-    fclose(file);
-    printf("æ–‡ä»¶åŠ è½½æˆåŠŸï¼Œå…± %d è¡Œã€‚\n", text->line_count);
+
+    fclose(fp);
+    printf("ÎÄ¼ş %s ¼ÓÔØÍê³É£¬¹² %d ĞĞ¡£\n", filename, text->line_count);
 }
 
-// æ˜¾ç¤ºæ–‡æœ¬
 void display_text(const Text* text) {
-    if (text == NULL || text->line_count == 0) {
-        printf("æ–‡æœ¬ä¸ºç©º.ï¼\n");
+    if (!text || !text->line_count) {
+        printf("ÎÄ±¾Îª¿Õ¡£\n");
         return;
     }
-    
-    printf("=== æ–‡æœ¬å†…å®¹ [%dè¡Œ] ===\n", text->line_count);
-    for (int i = 0; i < text->line_count; i++) {
-        printf("%3d: %s\n", i+1, text->lines[i]);
-    }
-    printf("=== ç»“æŸ ===\n");
+
+    printf("\n=== ÎÄ±¾Ô¤ÀÀ£¨%d ĞĞ£©===\n", text->line_count);
+    for (int i = 0; i < text->line_count; i++)
+        printf("%3d: %s\n", i + 1, text->lines[i]);
+    printf("=======================\n");
 }
 
-// é‡Šæ”¾å†…å­˜
 void free_text(Text* text) {
-    if (text == NULL) return;
-    
-    for (int i = 0; i < text->line_count; i++) {
-        if (text->lines[i] != NULL) {
-            free(text->lines[i]);
-        }
-    }
-    
+    if (!text) return;
+    for (int i = 0; i < text->line_count; i++)
+        free(text->lines[i]);
     free(text->lines);
     free(text);
-    printf("å†…å­˜å·²é‡Šæ”¾ã€‚\n");
 }
 
-void init_undo_stack(UndoStack* s) {
+/* ================= V2 ³·Ïú»úÖÆ ================= */
+
+StateStack* create_state_stack() {
+    StateStack* s = (StateStack*)malloc(sizeof(StateStack));
+    s->capacity = STATE_STACK_INIT_CAPACITY;
+    s->states = malloc(sizeof(State) * s->capacity);
     s->top = -1;
-    for (int i = 0; i < MAX_UNDO; i++) {
-        s->records[i].content = NULL;
-    }
+    return s;
 }
 
-void free_undo_stack(UndoStack* s) {
-    for (int i = 0; i <= s->top; i++) {
-        if (s->records[i].content) {
-            free(s->records[i].content);
-        }
+void push_state(StateStack* stack, const Text* text) {
+    if (!stack || !text) return;
+
+    if (++stack->top >= stack->capacity) {
+        stack->capacity *= 2;
+        stack->states = realloc(stack->states, sizeof(State) * stack->capacity);
     }
+
+    State* st = &stack->states[stack->top];
+    st->line_count = text->line_count;
+    st->capacity = text->capacity;
+    st->lines = malloc(sizeof(char*) * st->capacity);
+
+    for (int i = 0; i < text->line_count; i++)
+        st->lines[i] = strdup(text->lines[i]);
 }
 
-int save_state(Text* t, UndoStack* s, int line_no) {
-    if (s->top >= MAX_UNDO - 1) {
-        printf("æ’¤é”€æ ˆå·²æ»¡ï¼Œæ— æ³•ä¿å­˜\n");
-        return 0;
-    }
-    
-    s->top++;
-    s->records[s->top].line_index = line_no;
-    s->records[s->top].content = (char*)malloc(strlen(t->lines[line_no]) + 1);
-    
-    if (!s->records[s->top].content) {
-        s->top--;
-        return 0;
-    }
-    
-    strcpy(s->records[s->top].content, t->lines[line_no]);
-    return 1;
+State* pop_state(StateStack* stack) {
+    if (stack->top < 0) return NULL;
+    return &stack->states[stack->top--];
 }
 
-
-
-int delete_line(Text* t, int line_no, UndoStack* s) {
-    int idx = line_no - 1;
-    
-    if (idx < 0 || idx >= t->line_count) {
-        printf("è¡Œå·æ— æ•ˆï¼æœ‰æ•ˆèŒƒå›´ï¼š1~%d\n", t->line_count);
-        return 0;
-    }
-    
-    if (!save_state(t, s, idx)) {
-        return 0;
-    }
-    
-    free(t->lines[idx]);
-    for (int i = idx; i < t->line_count - 1; i++) {
-        t->lines[i] = t->lines[i+1];
-    }
-    
-    t->line_count--;
-    printf("å·²åˆ é™¤ç¬¬ %d è¡Œ\n", line_no);
-    return 1;
+void save_state(Text* text, StateStack* stack) {
+    push_state(stack, text);
 }
 
-int undo(Text* t, UndoStack* s) {
-    if (s->top < 0) {
-        printf("æ²¡æœ‰å¯æ’¤é”€çš„æ“ä½œ\n");
-        return 0;
-    }
-    
-    UndoRecord* last = &s->records[s->top];
-    int restore_idx = last->line_index;
-    
-    if (restore_idx < 0 || restore_idx > t->line_count) {
-        printf("æ’¤é”€å¤±è´¥ï¼šä¿å­˜çš„è¡Œå·å·²æ— æ•ˆ\n");
-        free(last->content);
-        s->top--;
-        return 0;
-    }
-    
-    if (t->line_count + 1 > t->capacity) {
-        int new_cap = t->capacity * 2;
-        char** new_lines = (char**)realloc(t->lines, sizeof(char*) * new_cap);
-        if (!new_lines) {
-            printf("å†…å­˜ä¸è¶³ï¼Œæ’¤é”€å¤±è´¥\n");
-            return 0;
-        }
-        t->lines = new_lines;
-        t->capacity = new_cap;
-    }
-    
-    for (int i = t->line_count; i > restore_idx; i--) {
-        t->lines[i] = t->lines[i-1];
-    }
-    
-    t->lines[restore_idx] = (char*)malloc(strlen(last->content) + 1);
-    if (!t->lines[restore_idx]) {
-        printf("å†…å­˜åˆ†é…å¤±è´¥\n");
-        return 0;
-    }
-    strcpy(t->lines[restore_idx], last->content);
-    t->line_count++;
-    
-    free(last->content);
-    s->top--;
-    
-    printf("æ’¤é”€æˆåŠŸï¼Œå·²æ¢å¤ç¬¬ %d è¡Œ\n", restore_idx + 1);
-    return 1;
-}
-void find_text(const Text* text, const char* pattern) {
- if (text == NULL || text->line_count == 0) {
-        printf("æ–‡æœ¬ä¸ºç©ºï¼Œæ— æ³•æœç´¢ã€‚\n");
+void undo_delete(Text* text, StateStack* stack) {
+    State* st = pop_state(stack);
+    if (!st) {
+        printf("ÎŞ¿É³·Ïú²Ù×÷¡£\n");
         return;
     }
-    
-    int found = 0;
-    printf("\n=== æœç´¢ \"%s\" çš„ç»“æœ ===\n", pattern);
-    for (int i = 0; i < text->line_count; i++) {
-        if (strstr(text->lines[i], pattern) != NULL) {
-            printf("ç¬¬ %d è¡Œ: %s\n", i+1, text->lines[i]);
-            found++;
-        }
-    }
-    if (!found) {
-        printf("æœªæ‰¾åˆ°åŒ…å« \"%s\" çš„è¡Œã€‚\n", pattern);
-    }
-    printf("========================\n");
+
+    free_text(text);
+
+    text->line_count = st->line_count;
+    text->capacity = st->capacity;
+    text->lines = malloc(sizeof(char*) * text->capacity);
+
+    for (int i = 0; i < st->line_count; i++)
+        text->lines[i] = strdup(st->lines[i]);
+
+    printf("³·Ïú³É¹¦¡£\n");
 }
 
-// ç»Ÿè®¡æ€»å­—ç¬¦æ•°ï¼ˆä¸åŒ…æ‹¬æ¢è¡Œç¬¦ï¼Œå› ä¸ºåŠ è½½æ—¶å·²å»æ‰æ¢è¡Œï¼‰
-int count_total_chars(const Text* text) {   // +++ V3æ–°å¢ +++
-    if (text == NULL || text->line_count == 0) {
-        return 0;
-    }
-    
-    int total = 0;
-    for (int i = 0; i < text->line_count; i++) {
-        total += strlen(text->lines[i]);
-    }
-    return total;
-}
-
-// ç»Ÿè®¡æ€»è¡Œæ•°ï¼ˆç›´æ¥è¿”å›è¡Œæ•°ï¼‰
-int count_total_lines(const Text* text) {   // +++ V3æ–°å¢ +++
-    if (text == NULL) return 0;
-    return text->line_count;
-}
-
-// æ˜¾ç¤ºç»Ÿè®¡ä¿¡æ¯ï¼ˆå°è£…è°ƒç”¨ï¼‰
-void show_statistics(const Text* text) {   // +++ V3æ–°å¢ +++
-    int lines = count_total_lines(text);
-    int chars = count_total_chars(text);
-    printf("\n========== ç»Ÿè®¡ä¿¡æ¯ ==========\n");
-    printf("æ€»è¡Œæ•°: %d\n", lines);
-    printf("æ€»å­—ç¬¦æ•°: %d (ä¸å«æ¢è¡Œç¬¦)\n", chars);
-    if (lines > 0) {
-        printf("å¹³å‡æ¯è¡Œå­—ç¬¦æ•°: %.1f\n", (double)chars / lines);
-    }
-    printf("==============================\n");
-}
-void to_lowercase(char* str) {
-    for (int i = 0; str[i]; i++) {
-        str[i] = tolower((unsigned char)str[i]);
-    }
-}
-
-
-char** extract_words(const char* line, int* word_count) {
-    if (line == NULL || strlen(line) == 0) {
-        *word_count = 0;
-        return NULL;
-    }
-    
-    // å¤åˆ¶ä¸€è¡Œï¼Œå› ä¸ºéœ€è¦ä¿®æ”¹
-    char* temp = (char*)malloc(strlen(line) + 1);
-    strcpy(temp, line);
-    
-    // å°†æ ‡ç‚¹ç¬¦å·æ›¿æ¢ä¸ºç©ºæ ¼ï¼Œä¾¿äºåˆ†å‰²
-    for (int i = 0; temp[i]; i++) {
-        if (ispunct((unsigned char)temp[i])) {
-            temp[i] = ' ';
-        }
-    }
-    
-    // åˆ†å‰²å•è¯
-    char** words = NULL;
-    int capacity = 0;
-    *word_count = 0;
-    
-    char* token = strtok(temp, " \t");
-    while (token != NULL) {
-        // å¿½ç•¥ç©ºå­—ç¬¦ä¸²
-        if (strlen(token) > 0) {
-            // åªä¿ç•™å­—æ¯æ•°å­—å•è¯ï¼ˆå¯ä»¥ä¿ç•™è¿å­—ç¬¦ï¼Œä½†è¿™é‡Œç®€åŒ–ï¼‰
-            // ä¸ºäº†å•è¯ç»Ÿè®¡ï¼Œè½¬ä¸ºå°å†™
-            to_lowercase(token);
-            
-            if (*word_count >= capacity) {
-                capacity = capacity == 0 ? 10 : capacity * 2;
-                char** new_words = (char**)realloc(words, sizeof(char*) * capacity);
-                if (!new_words) {
-                    // å†…å­˜åˆ†é…å¤±è´¥ï¼Œé‡Šæ”¾å·²æœ‰
-                    for (int i = 0; i < *word_count; i++) free(words[i]);
-                    free(words);
-                    free(temp);
-                    *word_count = 0;
-                    return NULL;
-                }
-                words = new_words;
-            }
-            words[*word_count] = (char*)malloc(strlen(token) + 1);
-            strcpy(words[*word_count], token);
-            (*word_count)++;
-        }
-        token = strtok(NULL, " \t");
-    }
-    
-    free(temp);
-    return words;
-}
-
-// æ¯”è¾ƒå‡½æ•°ï¼Œç”¨äºqsortï¼ŒæŒ‰é¢‘ç‡é™åºï¼Œé¢‘ç‡ç›¸åŒæŒ‰å•è¯å‡åº
-int compare_word_freq(const void* a, const void* b) {
-    WordFreq* wa = (WordFreq*)a;
-    WordFreq* wb = (WordFreq*)b;
-    if (wa->freq != wb->freq) {
-        return wb->freq - wa->freq; // é™åº
-    }
-    return strcmp(wa->word, wb->word); // å‡åº
-}
-
-// è¯é¢‘ç»Ÿè®¡ä¸»å‡½æ•°
-void count_word_frequency(const Text* text, WordFreq** result, int* result_count) {
-    if (text == NULL || text->line_count == 0) {
-        *result = NULL;
-        *result_count = 0;
+void delete_line(Text* text, int line_num, StateStack* stack) {
+    if (!text || line_num < 1 || line_num > text->line_count) {
+        printf("ĞĞºÅÎŞĞ§¡£\n");
         return;
     }
-    
-    // ç”¨åŠ¨æ€æ•°ç»„å­˜å‚¨è¯é¢‘ï¼Œç®€å•å®ç°ï¼šé¡ºåºæŸ¥æ‰¾ï¼ˆå•è¯æ•°ä¸å¤šæ—¶å¤Ÿç”¨ï¼‰
-    WordFreq* freq_list = NULL;
-    int freq_capacity = 0;
-    int freq_count = 0;
-    
-    // éå†æ¯ä¸€è¡Œ
-    for (int i = 0; i < text->line_count; i++) {
-        int word_cnt = 0;
-        char** words = extract_words(text->lines[i], &word_cnt);
-        if (words == NULL) continue;
-        
-        for (int j = 0; j < word_cnt; j++) {
-            // åœ¨å½“å‰è¯é¢‘åˆ—è¡¨ä¸­æŸ¥æ‰¾è¯¥å•è¯
-            int found = -1;
-            for (int k = 0; k < freq_count; k++) {
-                if (strcmp(freq_list[k].word, words[j]) == 0) {
-                    found = k;
-                    break;
-                }
-            }
-            if (found != -1) {
-                freq_list[found].freq++;
-            } else {
-                // æ·»åŠ æ–°å•è¯
-                if (freq_count >= freq_capacity) {
-                    freq_capacity = freq_capacity == 0 ? 64 : freq_capacity * 2;
-                    WordFreq* new_list = (WordFreq*)realloc(freq_list, sizeof(WordFreq) * freq_capacity);
-                    if (!new_list) {
-                        // å†…å­˜åˆ†é…å¤±è´¥ï¼Œæ¸…ç†å¹¶é€€å‡º
-                        for (int k = 0; k < freq_count; k++) ; // æ— éœ€æ¸…ç†ï¼Œåç»­ç»Ÿä¸€free
-                        free(freq_list);
-                        for (int k = 0; k < word_cnt; k++) free(words[k]);
-                        free(words);
-                        *result = NULL;
-                        *result_count = 0;
-                        return;
-                    }
-                    freq_list = new_list;
-                }
-                strcpy(freq_list[freq_count].word, words[j]);
-                freq_list[freq_count].freq = 1;
-                freq_count++;
-            }
-            free(words[j]);
-        }
-        free(words);
-    }
-    
-    // æŒ‰é¢‘ç‡æ’åº
-    qsort(freq_list, freq_count, sizeof(WordFreq), compare_word_freq);
-    
-    *result = freq_list;
-    *result_count = freq_count;
+
+    save_state(text, stack);
+
+    int idx = line_num - 1;
+    free(text->lines[idx]);
+
+    for (int i = idx; i < text->line_count - 1; i++)
+        text->lines[i] = text->lines[i + 1];
+
+    text->lines[--text->line_count] = NULL;
+    printf("ÒÑÉ¾³ıµÚ %d ĞĞ¡£\n", line_num);
 }
 
-// æ˜¾ç¤ºè¯é¢‘ç»Ÿè®¡ç»“æœ
-void display_word_frequency(const Text* text) {
-    WordFreq* list = NULL;
-    int count = 0;
-    count_word_frequency(text, &list, &count);
-    
-    if (count == 0) {
-        printf("æ–‡æœ¬ä¸­æ²¡æœ‰å•è¯æˆ–æ–‡æœ¬ä¸ºç©ºã€‚\n");
-        return;
-    }
-    
-    printf("\n========== è¯é¢‘ç»Ÿè®¡ç»“æœ ==========\n");
-    printf("å…± %d ä¸ªä¸åŒçš„å•è¯\n", count);
-    printf("å•è¯\t\té¢‘ç‡\n");
-    printf("------------------------\n");
-    for (int i = 0; i < count; i++) {
-        printf("%-20s %d\n", list[i].word, list[i].freq);
-    }
-    printf("==================================\n");
-    
-    free(list);
+void free_state_stack(StateStack* stack) {
+    while (stack->top >= 0)
+        free_state(&stack->states[stack->top--]);
+    free(stack->states);
+    free(stack);
 }
-   int main(){
-    Text* my_text = create_text();
-    if (my_text == NULL) {
-        return 1;
+
+void free_state(State* state) {
+    if (!state) return;
+    for (int i = 0; i < state->line_count; i++)
+        free(state->lines[i]);
+    free(state->lines);
+}
+
+/* ================= V3 ¹¦ÄÜ ================= */
+
+int find_text(const Text* text, const char* keyword) {
+    if (!text || !keyword) return 0;
+    for (int i = 0; i < text->line_count; i++) {
+        if (strstr(text->lines[i], keyword))
+            return i + 1;
     }
-    
-    // åˆå§‹åŒ–æ’¤é”€æ ˆ
-    UndoStack undo_stack;
-    init_undo_stack(&undo_stack);
-    
-    // åŠ è½½æ–‡ä»¶
-    char filename[100];
-    printf("è¯·è¾“å…¥æ–‡ä»¶åï¼ˆé»˜è®¤ input.txtï¼‰: ");
-    fgets(filename, sizeof(filename), stdin);
-    filename[strcspn(filename, "\n")] = '\0';
-    
-    if (strlen(filename) == 0) {
-        strcpy(filename, "input.txt");
-    }
-    
-    load_file(my_text, filename);
-    display_text(my_text);
-    
-    // ä¸»å¾ªç¯
-    char cmd[10];
-    int line_no;
-    char search_str[256];
-    while (1) {
-        
-        printf("\nå‘½ä»¤: d <è¡Œå·>(åˆ é™¤), u(æ’¤é”€), s(æ˜¾ç¤º), f <å…³é”®è¯>(æœç´¢), c(ç»Ÿè®¡), q(é€€å‡º): ");
-        scanf("%s", cmd);
-        
-        if (strcmp(cmd, "d") == 0) {
-            if (scanf("%d", &line_no) != 1) {
-                printf("è¯·è¾“å…¥æ•°å­—è¡Œå·ï¼\n");
-                while (getchar() != '\n');
-                continue;
-            }
-            delete_line(my_text, line_no, &undo_stack);
-            display_text(my_text);
-        }
-        else if (strcmp(cmd, "u") == 0) {
-            undo(my_text, &undo_stack);
-            display_text(my_text);
-        }
-        else if (strcmp(cmd, "s") == 0) {
-            display_text(my_text);
-        }
-        
-        else if (strcmp(cmd, "f") == 0) {
-            if (scanf("%255s", search_str) != 1) {
-                printf("è¯·è¾“å…¥æœç´¢å…³é”®è¯ï¼\n");
-                while (getchar() != '\n');
-                continue;
-            }
-            find_text(my_text, search_str);
-        }
-        
-        else if (strcmp(cmd, "c") == 0) {
-            show_statistics(my_text);
-        }
-        else if (strcmp(cmd, "q") == 0) {
-            break;
-        }
-        else {
-            
-            printf("æœªçŸ¥å‘½ä»¤ï¼å¯ç”¨å‘½ä»¤: d, u, s, f, c, q\n");
-        }
-        // æ¸…ç©ºè¾“å…¥ç¼“å†²åŒº
-        while (getchar() != '\n');
-    }
-    
-    free_undo_stack(&undo_stack);
-    free_text(my_text);
-    
     return 0;
 }
 
+int count_total_chars(const Text* text) {
+    int total = 0;
+    if (!text) return 0;
+    for (int i = 0; i < text->line_count; i++)
+        total += strlen(text->lines[i]);
+    return total;
+}
+
+int count_total_lines(const Text* text) {
+    return text ? text->line_count : 0;
+}
+
+/* ================= V4 ĞÂÔö¹¦ÄÜ ================= */
+
+// ÅĞ¶Ï×Ö·ûÊÇ·ñÊÇµ¥´ÊµÄÒ»²¿·Ö
+int is_word_char(char c) {
+    return isalpha(c) || isdigit(c);
+}
+
+// Í³¼Æ´ÊÆµ
+void count_word_frequency(const Text* text, WordFreq* word_list, int* word_count) {
+    if (!text || !text->line_count) {
+        *word_count = 0;
+        return;
+    }
+    
+    *word_count = 0;
+    
+    for (int i = 0; i < text->line_count; i++) {
+        const char* line = text->lines[i];
+        int len = strlen(line);
+        
+        for (int j = 0; j < len; j++) {
+            // Ìø¹ı·Çµ¥´Ê×Ö·û
+            if (!is_word_char(line[j])) continue;
+            
+            // ÌáÈ¡Ò»¸öµ¥´Ê
+            char word[MAX_WORD_LEN] = {0};
+            int k = 0;
+            
+            // ¸´ÖÆµ¥´Ê£¨×ª»»ÎªĞ¡Ğ´£©
+            while (j < len && is_word_char(line[j]) && k < MAX_WORD_LEN - 1) {
+                word[k++] = tolower(line[j++]);
+            }
+            word[k] = '\0';
+            
+            if (strlen(word) < 1) continue;  // Ìø¹ı¿Õµ¥´Ê
+            
+            // ÔÚ´ÊÆµÁĞ±íÖĞ²éÕÒµ¥´Ê
+            int found = 0;
+            for (int w = 0; w < *word_count; w++) {
+                if (strcmp(word_list[w].word, word) == 0) {
+                    word_list[w].count++;
+                    found = 1;
+                    break;
+                }
+            }
+            
+            // Èç¹ûÃ»ÕÒµ½£¬Ìí¼Óµ½ÁĞ±í
+            if (!found && *word_count < MAX_WORDS) {
+                strcpy(word_list[*word_count].word, word);
+                word_list[*word_count].count = 1;
+                (*word_count)++;
+            }
+            
+            j--;  // »ØÍËÒ»¸ö×Ö·û£¬ÒòÎªÍâ²ãÑ­»·»áµİÔö
+        }
+    }
+}
+
+// ±È½Ïº¯Êı£¬ÓÃÓÚÅÅĞò
+int compare_frequency(const void* a, const void* b) {
+    const WordFreq* w1 = (const WordFreq*)a;
+    const WordFreq* w2 = (const WordFreq*)b;
+    return w2->count - w1->count;  // ½µĞòÅÅÁĞ
+}
+
+// ÅÅĞò´ÊÆµ
+void sort_frequency(WordFreq* word_list, int word_count) {
+    if (word_count < 2) return;  // ²»ĞèÒªÅÅĞò
+    
+    qsort(word_list, word_count, sizeof(WordFreq), compare_frequency);
+}
+
+// ÏÔÊ¾´ÊÆµÍ³¼Æ½á¹û
+void display_word_frequency(const WordFreq* word_list, int word_count) {
+    if (word_count == 0) {
+        printf("Ã»ÓĞÕÒµ½ÈÎºÎµ¥´Ê¡£\n");
+        return;
+    }
+    
+    printf("\n=== ´ÊÆµÍ³¼Æ£¨¹² %d ¸ö²»Í¬µ¥´Ê£©===\n", word_count);
+    printf("%-5s %-20s %s\n", "ÅÅÃû", "µ¥´Ê", "³öÏÖ´ÎÊı");
+    printf("------------------------------------\n");
+    
+    int display_count = word_count < 20 ? word_count : 20;
+    for (int i = 0; i < display_count; i++) {
+        printf("%-5d %-20s %d\n", i + 1, word_list[i].word, word_list[i].count);
+    }
+    
+    if (word_count > 20) {
+        printf("... »¹ÓĞ %d ¸öµ¥´ÊÎ´ÏÔÊ¾\n", word_count - 20);
+    }
+    printf("====================================\n");
+}
+
+/* ================= Ö÷º¯Êı ================= */
+
+int main() {
+    Text* text = create_text();
+    StateStack* stack = create_state_stack();
+    WordFreq word_list[MAX_WORDS];
+    int word_count = 0;
+
+    // Ê¹ÓÃ input.txt
+    load_file(text, "input.txt");
+
+    int choice, line;
+    char key[128];
+
+    while (1) {
+        printf("\n====== ÎÄ±¾±à¼­Æ÷ V4 ======\n");
+        printf("1. ÏÔÊ¾ÎÄ±¾\n");
+        printf("2. É¾³ıĞĞ\n");
+        printf("3. ³·ÏúÉ¾³ı\n");
+        printf("4. ²éÕÒ×Ö·û´®\n");
+        printf("5. Í³¼Æ×Ö·ûÊı\n");
+        printf("6. Í³¼ÆĞĞÊı\n");
+        printf("7. Í³¼Æ´ÊÆµ£¨²»ÅÅĞò£©\n");
+        printf("8. Í³¼Æ´ÊÆµ£¨ÅÅĞòºó£©\n");
+        printf("9. ÍË³ö\n");
+        printf("ÇëÑ¡Ôñ£º");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1:
+                display_text(text);
+                break;
+            case 2:
+                printf("ÊäÈëÒªÉ¾³ıµÄĞĞºÅ£º");
+                scanf("%d", &line);
+                delete_line(text, line, stack);
+                break;
+            case 3:
+                undo_delete(text, stack);
+                break;
+            case 4:
+                printf("ÊäÈëÒª²éÕÒµÄ×Ö·û´®£º");
+                scanf("%s", key);
+                line = find_text(text, key);
+                if (line)
+                    printf("ÕÒµ½£¬Î»ÓÚµÚ %d ĞĞ¡£\n", line);
+                else
+                    printf("Î´ÕÒµ½¡£\n");
+                break;
+            case 5:
+                printf("×Ü×Ö·ûÊı£º%d\n", count_total_chars(text));
+                break;
+            case 6:
+                printf("×ÜĞĞÊı£º%d\n", count_total_lines(text));
+                break;
+            case 7:
+                count_word_frequency(text, word_list, &word_count);
+                printf("\n=== ´ÊÆµÍ³¼Æ£¨Ô­Ê¼Ë³Ğò£©===\n");
+                for (int i = 0; i < word_count && i < 20; i++) {
+                    printf("%-20s: %d\n", word_list[i].word, word_list[i].count);
+                }
+                printf("¹² %d ¸ö²»Í¬µ¥´Ê\n", word_count);
+                break;
+            case 8:
+                // ÏÈÍ³¼Æ£¬È»ºóÅÅĞò£¬×îºóÏÔÊ¾
+                count_word_frequency(text, word_list, &word_count);
+                sort_frequency(word_list, word_count);
+                display_word_frequency(word_list, word_count);
+                break;
+            case 9:
+                free_text(text);
+                free_state_stack(stack);
+                return 0;
+            default:
+                printf("ÎŞĞ§Ñ¡Ïî¡£\n");
+        }
+    }
+}
