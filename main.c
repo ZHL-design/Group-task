@@ -3,7 +3,7 @@
 #include <string.h>
 #define MAX_UNDO 50
 #define INIT_CAPACITY 10
-
+#define MAX_WORD_LEN 256
 // 定义文本结构体。
 typedef struct {
     char** lines;      // 字符串数组指针
@@ -19,6 +19,11 @@ typedef struct {
     UndoRecord records[MAX_UNDO];
     int top;            // 栈顶指针，-1 表示空
 } UndoStack;
+
+typedef struct {
+    char word[MAX_WORD_LEN];
+    int freq;
+} WordFreq;
 // 创建文本对象
 Text* create_text() {
     Text* new_text = (Text*)malloc(sizeof(Text));
@@ -271,6 +276,162 @@ void show_statistics(const Text* text) {   // +++ V3新增 +++
         printf("平均每行字符数: %.1f\n", (double)chars / lines);
     }
     printf("==============================\n");
+}
+void to_lowercase(char* str) {
+    for (int i = 0; str[i]; i++) {
+        str[i] = tolower((unsigned char)str[i]);
+    }
+}
+
+
+char** extract_words(const char* line, int* word_count) {
+    if (line == NULL || strlen(line) == 0) {
+        *word_count = 0;
+        return NULL;
+    }
+    
+    // 复制一行，因为需要修改
+    char* temp = (char*)malloc(strlen(line) + 1);
+    strcpy(temp, line);
+    
+    // 将标点符号替换为空格，便于分割
+    for (int i = 0; temp[i]; i++) {
+        if (ispunct((unsigned char)temp[i])) {
+            temp[i] = ' ';
+        }
+    }
+    
+    // 分割单词
+    char** words = NULL;
+    int capacity = 0;
+    *word_count = 0;
+    
+    char* token = strtok(temp, " \t");
+    while (token != NULL) {
+        // 忽略空字符串
+        if (strlen(token) > 0) {
+            // 只保留字母数字单词（可以保留连字符，但这里简化）
+            // 为了单词统计，转为小写
+            to_lowercase(token);
+            
+            if (*word_count >= capacity) {
+                capacity = capacity == 0 ? 10 : capacity * 2;
+                char** new_words = (char**)realloc(words, sizeof(char*) * capacity);
+                if (!new_words) {
+                    // 内存分配失败，释放已有
+                    for (int i = 0; i < *word_count; i++) free(words[i]);
+                    free(words);
+                    free(temp);
+                    *word_count = 0;
+                    return NULL;
+                }
+                words = new_words;
+            }
+            words[*word_count] = (char*)malloc(strlen(token) + 1);
+            strcpy(words[*word_count], token);
+            (*word_count)++;
+        }
+        token = strtok(NULL, " \t");
+    }
+    
+    free(temp);
+    return words;
+}
+
+// 比较函数，用于qsort，按频率降序，频率相同按单词升序
+int compare_word_freq(const void* a, const void* b) {
+    WordFreq* wa = (WordFreq*)a;
+    WordFreq* wb = (WordFreq*)b;
+    if (wa->freq != wb->freq) {
+        return wb->freq - wa->freq; // 降序
+    }
+    return strcmp(wa->word, wb->word); // 升序
+}
+
+// 词频统计主函数
+void count_word_frequency(const Text* text, WordFreq** result, int* result_count) {
+    if (text == NULL || text->line_count == 0) {
+        *result = NULL;
+        *result_count = 0;
+        return;
+    }
+    
+    // 用动态数组存储词频，简单实现：顺序查找（单词数不多时够用）
+    WordFreq* freq_list = NULL;
+    int freq_capacity = 0;
+    int freq_count = 0;
+    
+    // 遍历每一行
+    for (int i = 0; i < text->line_count; i++) {
+        int word_cnt = 0;
+        char** words = extract_words(text->lines[i], &word_cnt);
+        if (words == NULL) continue;
+        
+        for (int j = 0; j < word_cnt; j++) {
+            // 在当前词频列表中查找该单词
+            int found = -1;
+            for (int k = 0; k < freq_count; k++) {
+                if (strcmp(freq_list[k].word, words[j]) == 0) {
+                    found = k;
+                    break;
+                }
+            }
+            if (found != -1) {
+                freq_list[found].freq++;
+            } else {
+                // 添加新单词
+                if (freq_count >= freq_capacity) {
+                    freq_capacity = freq_capacity == 0 ? 64 : freq_capacity * 2;
+                    WordFreq* new_list = (WordFreq*)realloc(freq_list, sizeof(WordFreq) * freq_capacity);
+                    if (!new_list) {
+                        // 内存分配失败，清理并退出
+                        for (int k = 0; k < freq_count; k++) ; // 无需清理，后续统一free
+                        free(freq_list);
+                        for (int k = 0; k < word_cnt; k++) free(words[k]);
+                        free(words);
+                        *result = NULL;
+                        *result_count = 0;
+                        return;
+                    }
+                    freq_list = new_list;
+                }
+                strcpy(freq_list[freq_count].word, words[j]);
+                freq_list[freq_count].freq = 1;
+                freq_count++;
+            }
+            free(words[j]);
+        }
+        free(words);
+    }
+    
+    // 按频率排序
+    qsort(freq_list, freq_count, sizeof(WordFreq), compare_word_freq);
+    
+    *result = freq_list;
+    *result_count = freq_count;
+}
+
+// 显示词频统计结果
+void display_word_frequency(const Text* text) {
+    WordFreq* list = NULL;
+    int count = 0;
+    count_word_frequency(text, &list, &count);
+    
+    if (count == 0) {
+        printf("文本中没有单词或文本为空。\n");
+        return;
+    }
+    
+    printf("\n========== 词频统计结果 ==========\n");
+    printf("共 %d 个不同的单词\n", count);
+    printf("单词\t\t频率\n");
+    printf("------------------------\n");
+    for (int i = 0; i < count; i++) {
+        printf("%-20s %d\n", list[i].word, list[i].freq);
+    }
+    printf("==================================\n");
+    
+    free(list);
 }
    int main(){
     Text* my_text = create_text();
