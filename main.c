@@ -6,16 +6,15 @@
 #define MAX_UNDO 50
 #define INIT_CAPACITY 10
 #define MAX_WORD_LEN 256
-#define CMD_HISTORY_SIZE 10
 
-// ==================== 文本结构体 ====================
+// ==================== V1: 文本结构体 ====================
 typedef struct {
     char** lines;
     int line_count;
     int capacity;
 } Text;
 
-// ==================== 撤销栈 ====================
+// ==================== V2: 撤销栈（数组实现） ====================
 typedef struct {
     int line_index;
     char* content;
@@ -26,27 +25,34 @@ typedef struct {
     int top;
 } UndoStack;
 
-// ==================== 命令历史队列 ====================
-typedef struct {
-    char history[CMD_HISTORY_SIZE][20];
-    int front;
-    int rear;
-    int count;
-} CmdQueue;
-
-// ==================== Trie 树节点 ====================
+// ==================== V4: Trie 树节点（词频统计） ====================
 typedef struct TrieNode {
     struct TrieNode* children[26];
     int freq;
 } TrieNode;
 
-// ==================== 词频统计结构 ====================
+// ==================== V4: 词频统计结果结构 ====================
 typedef struct {
     char word[MAX_WORD_LEN];
     int freq;
 } WordFreq;
 
-// -------------------- 文本操作 --------------------
+// ==================== V5: 关键词链表 ====================
+typedef struct KeywordNode {
+    char* word;
+    struct KeywordNode* next;
+} KeywordNode;
+
+typedef struct {
+    KeywordNode* head;
+    int count;
+} KeywordList;
+
+// -------------------- ANSI 颜色宏 --------------------
+#define COLOR_RED   "\033[31m"
+#define COLOR_RESET "\033[0m"
+
+// ==================== V1 函数实现 ====================
 Text* create_text() {
     Text* new_text = (Text*)malloc(sizeof(Text));
     if (!new_text) return NULL;
@@ -106,7 +112,7 @@ void free_text(Text* text) {
     free(text);
 }
 
-// -------------------- 撤销栈 --------------------
+// ==================== V2 函数实现 ====================
 void init_undo_stack(UndoStack* s) {
     s->top = -1;
     for (int i = 0; i < MAX_UNDO; i++) s->records[i].content = NULL;
@@ -177,7 +183,7 @@ int undo(Text* t, UndoStack* s) {
     return 1;
 }
 
-// -------------------- 搜索 --------------------
+// ==================== V3 函数实现 ====================
 void find_text(const Text* text, const char* pattern) {
     if (!text || text->line_count == 0) {
         printf("文本为空，无法搜索。\n");
@@ -195,7 +201,6 @@ void find_text(const Text* text, const char* pattern) {
     printf("========================\n");
 }
 
-// -------------------- 统计 --------------------
 int count_total_chars(const Text* text) {
     if (!text) return 0;
     int total = 0;
@@ -219,7 +224,7 @@ void show_statistics(const Text* text) {
     printf("==============================\n");
 }
 
-// -------------------- 单词提取辅助 --------------------
+// ==================== V4 辅助函数 ====================
 void to_lowercase(char* str) {
     for (int i = 0; str[i]; i++)
         str[i] = tolower((unsigned char)str[i]);
@@ -264,7 +269,6 @@ char** extract_words(const char* line, int* word_count) {
     return words;
 }
 
-// -------------------- Trie 树实现 --------------------
 TrieNode* create_trie_node() {
     TrieNode* node = (TrieNode*)malloc(sizeof(TrieNode));
     if (node) {
@@ -312,16 +316,14 @@ void free_trie(TrieNode* node) {
     free(node);
 }
 
-// ---------- 词频比较函数（供 qsort 使用）----------
 int compare_word_freq(const void* a, const void* b) {
     const WordFreq* wa = (const WordFreq*)a;
     const WordFreq* wb = (const WordFreq*)b;
     if (wa->freq != wb->freq)
-        return wb->freq - wa->freq;   // 降序
-    return strcmp(wa->word, wb->word); // 升序
+        return wb->freq - wa->freq;
+    return strcmp(wa->word, wb->word);
 }
 
-// 使用 Trie 树统计词频（接口与原函数完全一致）
 void count_word_frequency(const Text* text, WordFreq** result, int* result_count) {
     if (!text || text->line_count == 0) {
         *result = NULL;
@@ -345,7 +347,6 @@ void count_word_frequency(const Text* text, WordFreq** result, int* result_count
     collect_freq(root, prefix, 0, &freq_list, &count, &capacity);
     free_trie(root);
     
-    // 排序：使用独立的比较函数
     qsort(freq_list, count, sizeof(WordFreq), compare_word_freq);
     
     *result = freq_list;
@@ -370,36 +371,92 @@ void display_word_frequency(const Text* text) {
     free(list);
 }
 
-// -------------------- 命令历史队列 --------------------
-void init_cmd_queue(CmdQueue* q) {
-    q->front = q->rear = q->count = 0;
+// ==================== V5 函数实现（链表版） ====================
+void init_keyword_list(KeywordList* kl) {
+    kl->head = NULL;
+    kl->count = 0;
 }
 
-void add_cmd_history(CmdQueue* q, const char* cmd) {
-    if (q->count == CMD_HISTORY_SIZE) {
-        q->front = (q->front + 1) % CMD_HISTORY_SIZE;
-        q->count--;
+void add_keyword(KeywordList* kl, const char* kw) {
+    if (!kw || strlen(kw) == 0) return;
+    // 去重
+    KeywordNode* cur = kl->head;
+    while (cur) {
+        if (strcmp(cur->word, kw) == 0) return;
+        cur = cur->next;
     }
-    strcpy(q->history[q->rear], cmd);
-    q->rear = (q->rear + 1) % CMD_HISTORY_SIZE;
-    q->count++;
+    KeywordNode* new_node = (KeywordNode*)malloc(sizeof(KeywordNode));
+    new_node->word = (char*)malloc(strlen(kw) + 1);
+    strcpy(new_node->word, kw);
+    new_node->next = kl->head;
+    kl->head = new_node;
+    kl->count++;
 }
 
-void show_cmd_history(CmdQueue* q) {
-    if (q->count == 0) {
-        printf("无命令历史。\n");
+void free_keyword_list(KeywordList* kl) {
+    KeywordNode* cur = kl->head;
+    while (cur) {
+        KeywordNode* tmp = cur;
+        cur = cur->next;
+        free(tmp->word);
+        free(tmp);
+    }
+    kl->head = NULL;
+    kl->count = 0;
+}
+
+void highlight_keywords(const Text* text, const KeywordList* kl) {
+    if (!text || text->line_count == 0) {
+        printf("文本为空！\n");
         return;
     }
-    printf("\n=== 最近命令历史（队列） ===\n");
-    int idx = q->front;
-    for (int i = 0; i < q->count; i++) {
-        printf("%d: %s\n", i+1, q->history[idx]);
-        idx = (idx + 1) % CMD_HISTORY_SIZE;
+    if (kl->head == NULL) {
+        display_text(text);
+        return;
     }
-    printf("============================\n");
+
+    printf("=== 多关键词高亮显示 [%d行] ===\n", text->line_count);
+    for (int i = 0; i < text->line_count; i++) {
+        const char* line = text->lines[i];
+        printf("%3d: ", i + 1);
+        
+        int pos = 0;
+        int len = strlen(line);
+        while (pos < len) {
+            int best_pos = -1;
+            int best_len = 0;
+            KeywordNode* cur = kl->head;
+            while (cur) {
+                const char* kw = cur->word;
+                int kw_len = strlen(kw);
+                if (kw_len == 0) { cur = cur->next; continue; }
+                const char* found = strstr(line + pos, kw);
+                if (found) {
+                    int offset = (int)(found - (line + pos));
+                    if (best_pos == -1 || offset < best_pos) {
+                        best_pos = offset;
+                        best_len = kw_len;
+                    }
+                }
+                cur = cur->next;
+            }
+            if (best_pos == -1) {
+                printf("%s", line + pos);
+                break;
+            } else {
+                if (best_pos > 0) {
+                    printf("%.*s", best_pos, line + pos);
+                }
+                printf("%s%.*s%s", COLOR_RED, best_len, line + pos + best_pos, COLOR_RESET);
+                pos += best_pos + best_len;
+            }
+        }
+        printf("\n");
+    }
+    printf("=== 结束 ===\n");
 }
 
-// -------------------- 主函数 --------------------
+// ==================== 主程序（交互菜单，无命令历史） ====================
 int main() {
     Text* my_text = create_text();
     if (!my_text) return 1;
@@ -407,8 +464,8 @@ int main() {
     UndoStack undo_stack;
     init_undo_stack(&undo_stack);
     
-    CmdQueue cmd_queue;
-    init_cmd_queue(&cmd_queue);
+    KeywordList keyword_list;
+    init_keyword_list(&keyword_list);
     
     char filename[100];
     printf("请输入文件名（input.txt）: ");
@@ -424,9 +481,8 @@ int main() {
     char search_str[256];
     
     while (1) {
-        printf("\n命令: d <行号>(删除), u(撤销), s(显示), f <词>(搜索), c(统计), w(词频), hist(历史), q(退出): ");
+        printf("\n命令: d <行号>(删除), u(撤销), s(显示/高亮), f <词>(搜索), c(统计), w(词频), h(设置高亮关键词), q(退出): ");
         scanf("%s", cmd);
-        add_cmd_history(&cmd_queue, cmd);
         
         if (strcmp(cmd, "d") == 0) {
             if (scanf("%d", &line_no) != 1) {
@@ -442,7 +498,7 @@ int main() {
             display_text(my_text);
         }
         else if (strcmp(cmd, "s") == 0) {
-            display_text(my_text);
+            highlight_keywords(my_text, &keyword_list);
         }
         else if (strcmp(cmd, "f") == 0) {
             if (scanf("%255s", search_str) != 1) {
@@ -458,20 +514,32 @@ int main() {
         else if (strcmp(cmd, "w") == 0) {
             display_word_frequency(my_text);
         }
-        else if (strcmp(cmd, "hist") == 0) {
-            show_cmd_history(&cmd_queue);
+        else if (strcmp(cmd, "h") == 0) {
+            free_keyword_list(&keyword_list);
+            init_keyword_list(&keyword_list);
+            printf("请输入多个关键词（空格分隔，回车结束）: ");
+            char input[512];
+            getchar();  // 吸收之前的换行符
+            fgets(input, sizeof(input), stdin);
+            input[strcspn(input, "\n")] = '\0';
+            char* token = strtok(input, " ");
+            while (token) {
+                add_keyword(&keyword_list, token);
+                token = strtok(NULL, " ");
+            }
+            printf("已设置 %d 个高亮关键词。\n", keyword_list.count);
         }
         else if (strcmp(cmd, "q") == 0) {
             break;
         }
         else {
-            printf("未知命令！可用: d, u, s, f, c, w, hist, q\n");
+            printf("未知命令！可用: d, u, s, f, c, w, h, q\n");
         }
         while (getchar() != '\n');  // 清空输入缓冲
     }
     
+    free_keyword_list(&keyword_list);
     free_undo_stack(&undo_stack);
     free_text(my_text);
     return 0;
-}
 }
