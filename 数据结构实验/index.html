@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文本处理工具 - 前端版</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 30px 20px;
+        }
+        .container {
+            background: rgba(255,255,255,0.96);
+            border-radius: 20px;
+            padding: 30px 35px;
+            max-width: 960px;
+            width: 100%;
+            box-shadow: 0 20px 80px rgba(0,0,0,0.5);
+            backdrop-filter: blur(8px);
+        }
+        h1 {
+            text-align: center;
+            color: #1a1a2e;
+            font-size: 26px;
+            margin-bottom: 6px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        /* 工具栏 */
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 18px;
+            align-items: center;
+        }
+        .toolbar button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: white;
+            background: #667eea;
+        }
+        .toolbar button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
+        .toolbar button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+        .toolbar .btn-danger { background: #e74c3c; }
+        .toolbar .btn-success { background: #2ecc71; }
+        .toolbar .btn-warning { background: #f39c12; }
+        .toolbar .btn-info { background: #3498db; }
+        .toolbar .btn-purple { background: #9b59b6; }
+        .toolbar input[type="file"] { display: none; }
+        .toolbar label.file-label {
+            padding: 8px 16px;
+            background: #34495e;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .toolbar label.file-label:hover { background: #2c3e50; }
+        .toolbar input[type="text"] {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            width: 180px;
+            transition: border 0.2s;
+        }
+        .toolbar input[type="text"]:focus { border-color: #667eea; }
+        .file-info {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background: #f0f2ff;
+            border-radius: 8px;
+            display: none;
+        }
+        /* 文本显示区域 */
+        .text-display {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px 16px;
+            height: 350px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-break: break-all;
+            position: relative;
+        }
+        .text-display .line-number {
+            color: #999;
+            user-select: none;
+            margin-right: 12px;
+        }
+        .text-display .highlight {
+            background: #ffdd57;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .text-display .keyword-highlight {
+            background: #ff6b6b;
+            color: white;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .status-bar {
+            margin-top: 12px;
+            padding: 8px 14px;
+            background: #e8f5e9;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #2e7d32;
+            display: none;
+        }
+        .status-bar.error { background: #ffebee; color: #c62828; }
+        .footer {
+            margin-top: 18px;
+            text-align: center;
+            font-size: 12px;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📄 文本处理工具</h1>
+    <p class="subtitle">咕咕嘎嘎，巴巴博一</p >
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+        <label class="file-label" for="fileInput">📂 选择文件</label>
+        <input type="file" id="fileInput" accept=".txt">
+        <button id="btnShow" disabled>📋 显示内容</button>
+        <button id="btnDelete" class="btn-danger" disabled>🗑️ 删除行</button>
+        <button id="btnUndo" class="btn-warning" disabled>↩️ 撤销</button>
+        <button id="btnSearch" class="btn-info" disabled>🔍 搜索</button>
+        <button id="btnStats" class="btn-purple" disabled>📊 统计</button>
+        <button id="btnFreq" class="btn-success" disabled>📈 词频</button>
+        <button id="btnHighlight" disabled>✨ 高亮</button>
+        <button id="btnSave" class="btn-success" disabled>💾 保存</button>
+        <input type="text" id="inputField" placeholder="行号 / 关键词 / 高亮词(空格分隔)" style="flex:1;min-width:150px;">
+    </div>
+
+    <!-- 文件信息 -->
+    <div class="file-info" id="fileInfo"></div>
+
+    <!-- 文本显示区域 -->
+    <div class="text-display" id="textDisplay">
+        <p style="color:#aaa; text-align:center; margin-top:120px;">请选择一个 .txt 文件开始</p >
+    </div>
+
+    <!-- 状态栏 -->
+    <div class="status-bar" id="statusBar"></div>
+
+    <div class="footer">所有数据处理均在浏览器本地完成，不会上传任何文件。</div>
+</div>
+
+<script>
+// ===================== 核心数据结构（仿C语言版） =====================
+class Text {
+    constructor() {
+        this.lines = [];
+        this.count = 0;
+    }
+    load(content) {
+        this.lines = content.split('\n');
+        this.count = this.lines.length;
+    }
+    getLine(idx) { return this.lines[idx] || ''; }
+    deleteLine(idx) {
+        if (idx < 0 || idx >= this.count) return false;
+        this.lines.splice(idx, 1);
+        this.count--;
+        return true;
+    }
+    insertLine(idx, content) {
+        this.lines.splice(idx, 0, content);
+        this.count++;
+    }
+    toString() { return this.lines.join('\n'); }
+}
+
+class UndoStack {
+    constructor() { this.stack = []; }
+    push(state) { this.stack.push(state); }
+    pop() { return this.stack.pop(); }
+    isEmpty() { return this.stack.length === 0; }
+}
+
+// Trie 树（词频统计）
+class TrieNode {
+    constructor() {
+        this.children = {};
+        this.freq = 0;
+    }
+}
+class Trie {
+    constructor() { this.root = new TrieNode(); }
+    insert(word) {
+        let node = this.root;
+        for (let ch of word.toLowerCase()) {
+            if (ch < 'a' || ch > 'z') continue;
+            if (!node.children[ch]) node.children[ch] = new TrieNode();
+            node = node.children[ch];
+        }
+        node.freq++;
+    }
+    collect() {
+        let results = [];
+        function dfs(node, prefix) {
+            if (node.freq > 0) results.push({ word: prefix, freq: node.freq });
+            for (let ch in node.children) dfs(node.children[ch], prefix + ch);
+        }
+        dfs(this.root, '');
+        results.sort((a,b) => b.freq - a.freq || a.word.localeCompare(b.word));
+        return results;
+    }
+}
+
+// ===================== 全局状态 =====================
+let txt = new Text();
+let undoStack = new UndoStack();
+let currentFilePath = '';  // 仅用于显示
+let searchKeyword = '';
+let highlightKeywords = [];
+
+// DOM 引用
+const fileInput = document.getElementById('fileInput');
+const btnShow = document.getElementById('btnShow');
+const btnDelete = document.getElementById('btnDelete');
+const btnUndo = document.getElementById('btnUndo');
+const btnSearch = document.getElementById('btnSearch');
+const btnStats = document.getElementById('btnStats');
+const btnFreq = document.getElementById('btnFreq');
+const btnHighlight = document.getElementById('btnHighlight');
+const btnSave = document.getElementById('btnSave');
+const inputField = document.getElementById('inputField');
+const textDisplay = document.getElementById('textDisplay');
+const fileInfo = document.getElementById('fileInfo');
+const statusBar = document.getElementById('statusBar');
+
+// ===================== 辅助函数 =====================
+function showStatus(msg, isError = false) {
+    statusBar.textContent = msg;
+    statusBar.className = 'status-bar' + (isError ? ' error' : '');
+    statusBar.style.display = 'block';
+    setTimeout(() => { statusBar.style.display = 'none'; }, 3000);
+}
+
+function enableButtons(enabled) {
+    const btns = [btnShow, btnDelete, btnUndo, btnSearch, btnStats, btnFreq, btnHighlight, btnSave];
+    btns.forEach(b => b.disabled = !enabled);
+}
+
+function renderText() {
+    if (txt.count === 0) {
+        textDisplay.innerHTML = '<p style="color:#aaa;text-align:center;margin-top:120px;">文本为空</p >';
+        return;
+    }
+    let html = '';
+    for (let i = 0; i < txt.count; i++) {
+        let line = escapeHtml(txt.lines[i]);
+        // 搜索高亮
+        if (searchKeyword) {
+            const regex = new RegExp(`(${escapeRegExp(searchKeyword)})`, 'gi');
+            line = line.replace(regex, '<span class="highlight">$1</span>');
+        }
+        // 关键词高亮
+        if (highlightKeywords.length > 0) {
+            for (let kw of highlightKeywords) {
+                if (!kw) continue;
+                const regex = new RegExp(`(${escapeRegExp(kw)})`, 'gi');
+                line = line.replace(regex, '<span class="keyword-highlight">$1</span>');
+            }
+        }
+        html += `<div><span class="line-number">${String(i+1).padStart(3,' ')}.</span>${line}</div>`;
+    }
+    textDisplay.innerHTML = html;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// ===================== 文件加载 =====================
+fileInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.txt')) {
+        showStatus('请选择 .txt 文件！', true);
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const content = event.target.result;
+        txt.load(content);
+        undoStack = new UndoStack();
+        currentFilePath = file.name;
+        searchKeyword = '';
+        highlightKeywords = [];
+        fileInfo.textContent = `📄 ${file.name}  (${file.size} 字节, ${txt.count} 行)`;
+        fileInfo.style.display = 'block';
+        enableButtons(true);
+        renderText();
+        showStatus('文件加载成功！');
+    };
+    reader.readAsText(file, 'UTF-8');
+});
+
+// ===================== 功能按钮 =====================
+// 显示内容
+btnShow.addEventListener('click', () => {
+    renderText();
+    showStatus('已显示全部内容');
+});
+
+// 删除行
+btnDelete.addEventListener('click', () => {
+    const val = inputField.value.trim();
+    const lineno = parseInt(val, 10);
+    if (isNaN(lineno) || lineno < 1 || lineno > txt.count) {
+        showStatus('请输入有效的行号 (1~' + txt.count + ')', true);
+        return;
+    }
+    // 保存状态用于撤销
+    undoStack.push({
+        idx: lineno - 1,
+        content: txt.lines[lineno - 1]
+    });
+    txt.deleteLine(lineno - 1);
+    renderText();
+    showStatus(`已删除第 ${lineno} 行`);
+});
+
+// 撤销
+btnUndo.addEventListener('click', () => {
+    if (undoStack.isEmpty()) {
+        showStatus('没有可撤销的操作', true);
+        return;
+    }
+    const state = undoStack.pop();
+    txt.insertLine(state.idx, state.content);
+    renderText();
+    showStatus(`撤销成功，已恢复第 ${state.idx + 1} 行`);
+});
+
+// 搜索
+btnSearch.addEventListener('click', () => {
+    const keyword = inputField.value.trim();
+    if (!keyword) {
+        showStatus('请输入搜索关键词', true);
+        return;
+    }
+    searchKeyword = keyword;
+    renderText();
+    // 统计匹配行数
+    let count = 0;
+    for (let i = 0; i < txt.count; i++) {
+        if (txt.lines[i].toLowerCase().includes(keyword.toLowerCase())) count++;
+    }
+    showStatus(`搜索 "${keyword}" 完成，共匹配 ${count} 行`);
+});
+
+// 统计
+btnStats.addEventListener('click', () => {
+    let totalChars = 0;
+    for (let i = 0; i < txt.count; i++) totalChars += txt.lines[i].length;
+    const avg = txt.count > 0 ? (totalChars / txt.count).toFixed(1) : 0;
+    showStatus(`总行数: ${txt.count} | 总字符数: ${totalChars} | 平均每行: ${avg}`);
+});
+
+// 词频
+btnFreq.addEventListener('click', () => {
+    const trie = new Trie();
+    for (let i = 0; i < txt.count; i++) {
+        // 提取单词（去标点）
+        const cleaned = txt.lines[i].replace(/[^\w\s]/g, ' ').toLowerCase();
+        const words = cleaned.split(/\s+/).filter(w => w.length > 0);
+        for (let w of words) trie.insert(w);
+    }
+    const results = trie.collect();
+    if (results.length === 0) {
+        showStatus('文本中没有找到单词', true);
+        return;
+    }
+    // 显示前20个
+    let msg = `共 ${results.length} 个不同单词，前20：\n`;
+    for (let i = 0; i < Math.min(20, results.length); i++) {
+        msg += `${results[i].word}: ${results[i].freq}\n`;
+    }
+    // 在状态栏显示（由于状态栏较短，用 alert 或单独显示）
+    // 这里用 alert 简单处理
+    alert(msg);
+    showStatus(`词频统计完成，共 ${results.length} 个不同单词`);
+});
+
+// 高亮
+btnHighlight.addEventListener('click', () => {
+    const val = inputField.value.trim();
+    if (!val) {
+        showStatus('请输入要高亮的关键词（空格分隔）', true);
+        return;
+    }
+    highlightKeywords = val.split(/\s+/).filter(k => k.length > 0);
+    if (highlightKeywords.length === 0) {
+        showStatus('无效的高亮词', true);
+        return;
+    }
+    renderText();
+    showStatus(`已高亮 ${highlightKeywords.length} 个关键词`);
+});
+
+// 保存
+btnSave.addEventListener('click', () => {
+    if (txt.count === 0) {
+        showStatus('没有内容可保存', true);
+        return;
+    }
+    const content = txt.toString();
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const baseName = currentFilePath ? currentFilePath.replace('.txt','') : 'output';
+    a.download = `${baseName}_processed.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showStatus('文件已保存下载');
+});
+
+// 回车键快捷操作（搜索/高亮/删除行）
+inputField.addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        // 默认执行搜索
+        btnSearch.click();
+    }
+});
+
+// 初始化禁用按钮
+enableButtons(false);
+</script>
+</body>
+</html>
