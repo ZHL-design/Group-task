@@ -60,7 +60,7 @@ typedef struct {
     int cnt;
 } KwList;
 
-/* ---------- 新增：操作日志队列 ---------- */
+/* ---------- 操作日志队列 ---------- */
 #define LOG_QUEUE_SIZE 10
 
 typedef struct {
@@ -68,7 +68,7 @@ typedef struct {
     int front, rear, count;
 } LogQueue;
 
-/* ---------- 新增：单词共现图 ---------- */
+/* ---------- 单词共现图 ---------- */
 typedef struct EdgeNode {
     int adjvex;
     int weight;
@@ -103,12 +103,22 @@ Text* text_new(void) {
     return t;
 }
 
-void text_load(Text* t, const char* fn) {
-    FILE* f = fopen(fn, "rb");  // 使用二进制模式读取，防止中文乱码
-    if (!f) { printf("无法打开文件：%s\n", fn); return; }
+/* ADDED: 清空文本内容 */
+void text_clear(Text* t) {
+    if (!t) return;
+    for (int i = 0; i < t->count; i++) free(t->lines[i]);
+    t->count = 0;
+}
+
+/* MODIFIED: 返回 int，1=成功，0=失败（文件不存在） */
+int text_load(Text* t, const char* fn) {
+    FILE* f = fopen(fn, "rb");
+    if (!f) {
+        printf("无法打开文件：%s\n", fn);
+        return 0;
+    }
     char buf[1024];
     while (fgets(buf, sizeof buf, f)) {
-        // 去掉行尾的 \r\n 或 \n
         buf[strcspn(buf, "\r\n")] = '\0';
         if (t->count >= t->cap)
             GROW_ARRAY(t->lines, t->cap, t->cap * 2, char*);
@@ -116,6 +126,32 @@ void text_load(Text* t, const char* fn) {
     }
     fclose(f);
     printf("文件加载成功，共 %d 行。\n", t->count);
+    return 1;
+}
+
+/* ADDED: 重新加载，失败时保留原内容，返回 1 成功，0 失败 */
+int text_reload(Text* t, const char* fn) {
+    // 备份当前内容
+    Text* backup = text_new();
+    for (int i = 0; i < t->count; i++) {
+        if (backup->count >= backup->cap)
+            GROW_ARRAY(backup->lines, backup->cap, backup->cap * 2, char*);
+        backup->lines[backup->count++] = my_strdup(t->lines[i]);
+    }
+    text_clear(t);
+    int ok = text_load(t, fn);
+    if (!ok) {
+        // 加载失败，恢复备份
+        for (int i = 0; i < backup->count; i++) {
+            if (t->count >= t->cap)
+                GROW_ARRAY(t->lines, t->cap, t->cap * 2, char*);
+            t->lines[t->count++] = my_strdup(backup->lines[i]);
+        }
+        text_free(backup);
+        return 0;
+    }
+    text_free(backup);
+    return 1;
 }
 
 void text_show(const Text* t) {
@@ -126,13 +162,11 @@ void text_show(const Text* t) {
     puts("=== 结束 ===");
 }
 
-/* ---------- 保存到新文件 ---------- */
 void text_save_as(const Text* t, const char* original_fn) {
     if (!t || t->count == 0) {
         printf("文本为空，无法保存。\n");
         return;
     }
-
     char new_fn[1024];
     const char* dot = strrchr(original_fn, '.');
     if (dot) {
@@ -144,13 +178,11 @@ void text_save_as(const Text* t, const char* original_fn) {
     } else {
         snprintf(new_fn, sizeof new_fn, "%s_processed", original_fn);
     }
-
     FILE* f = fopen(new_fn, "w");
     if (!f) {
         printf("无法创建新文件：%s\n", new_fn);
         return;
     }
-
     for (int i = 0; i < t->count; i++) {
         fprintf(f, "%s\n", t->lines[i]);
     }
@@ -168,8 +200,14 @@ void text_free(Text* t) {
 /* ---------- 撤销栈 ---------- */
 void undostack_init(UndoStack* s) { s->top = -1; memset(s->recs, 0, sizeof(s->recs)); }
 
-void undostack_free(UndoStack* s) {
+/* ADDED: 清空撤销栈 */
+void undostack_clear(UndoStack* s) {
     for (int i = 0; i <= s->top; i++) free(s->recs[i].content);
+    s->top = -1;
+}
+
+void undostack_free(UndoStack* s) {
+    undostack_clear(s);
 }
 
 static int save_state(Text* t, UndoStack* s, int idx) {
@@ -212,7 +250,7 @@ int text_undo(Text* t, UndoStack* s) {
     return 1;
 }
 
-/* ---------- 新增：行插入（线性表操作） ---------- */
+/* ---------- 行插入 ---------- */
 int text_insert(Text* t, int lineno, const char* content) {
     int idx = lineno - 1;
     if (idx < 0 || idx > t->count) {
@@ -331,7 +369,7 @@ void text_showfreq(const Text* t) {
     free(list);
 }
 
-/* ---------- 关键词高亮（链表） ---------- */
+/* ---------- 关键词高亮 ---------- */
 KwList* kwlist_new(void) {
     KwList* k = (KwList*)malloc(sizeof(KwList));
     k->head = NULL; k->cnt = 0;
@@ -389,7 +427,7 @@ void text_highlight(const Text* t, const KwList* k) {
     puts("=== 结束 ===");
 }
 
-/* ---------- 新增：操作日志队列 ---------- */
+/* ---------- 操作日志队列 ---------- */
 void logqueue_init(LogQueue* q) {
     q->front = q->rear = q->count = 0;
 }
@@ -427,7 +465,7 @@ void logqueue_free(LogQueue* q) {
     }
 }
 
-/* ---------- 新增：单词共现图 ---------- */
+/* ---------- 单词共现图 ---------- */
 void graph_init(Graph* g) {
     g->capacity = 100;
     g->count = 0;
@@ -545,7 +583,6 @@ void graph_free(Graph* g) {
 
 /* ---------- 主程序 ---------- */
 int main(void) {
-    // 如果你希望控制台正确显示UTF-8，可以取消下面两行的注释
     // SetConsoleOutputCP(65001);
     // SetConsoleCP(65001);
     
@@ -568,9 +605,9 @@ int main(void) {
         return 1;
     }
 
-    text_load(txt, fn);
-    if (txt->count == 0) {
-        printf("文件为空或加载失败，退出。\n");
+    /* MODIFIED: 文件不存在则退出，存在则继续（即使为空） */
+    if (!text_load(txt, fn)) {
+        printf("文件不存在，程序退出。\n");
         text_free(txt);
         kwlist_free(kw);
         logqueue_free(&logq);
@@ -584,7 +621,7 @@ int main(void) {
 
     char line[512];
     while (1) {
-        printf("\n命令: d <行号>(删除), u(撤销), s(显示/高亮), f <词>(搜索), c(统计), w(词频), h(设置高亮关键词), p(保存到新文件), ins <行号> <内容>(插入), log(操作日志), co(共现图Top10), q(退出): ");
+        printf("\n命令: d <行号>(删除), u(撤销), s(显示/高亮), f <词>(搜索), c(统计), w(词频), h(设置高亮关键词), p(保存到新文件), ins <行号> <内容>(插入), log(操作日志), co(共现图Top10), load <文件>(加载新文件), q(退出): ");
         if (!fgets(line, sizeof line, stdin)) break;
         line[strcspn(line, "\n")] = '\0';
         if (strlen(line) == 0) continue;
@@ -659,8 +696,29 @@ int main(void) {
             graph_show_top_coocc(&coocc_graph, 10);
             graph_free(&coocc_graph);
         }
+        /* MODIFIED: load 命令，失败保留原内容 */
+        else if (!strcmp(cmd, "load")) {
+            if (strlen(arg) == 0) {
+                puts("请指定文件路径，例如: load new.txt");
+            } else {
+                if (text_reload(txt, arg)) {
+                    strcpy(fn, arg);
+                    undostack_clear(&undo);
+                    kwlist_free(kw);
+                    kw = kwlist_new();
+                    logqueue_free(&logq);
+                    logqueue_init(&logq);
+                    char logbuf2[128];
+                    snprintf(logbuf2, sizeof logbuf2, "加载新文件: %s (%d行)", arg, txt->count);
+                    logqueue_push(&logq, logbuf2);
+                    text_show(txt);
+                } else {
+                    printf("加载新文件失败，保留原文本。\n");
+                }
+            }
+        }
         else if (!strcmp(cmd, "q")) break;
-        else printf("未知命令！可用: d, u, s, f, c, w, h, p, ins, log, co, q\n");
+        else printf("未知命令！可用: d, u, s, f, c, w, h, p, ins, log, co, load, q\n");
     }
 
     kwlist_free(kw);
