@@ -5,189 +5,484 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>文本处理工具 - 前端版</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* ========== 全局重置 ========== */
+        * { margin:0; padding:0; box-sizing: border-box; }
+
         body {
             font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
-            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            padding: 30px 20px;
+            padding: 40px 20px;
         }
+
+        /* ========== 主容器 ========== */
         .container {
-            background: rgba(255,255,255,0.96);
-            border-radius: 20px;
-            padding: 30px 35px;
-            max-width: 960px;
+            background: rgba(255,255,255,0.97);
+            border-radius: 24px;
+            padding: 36px 40px;
+            max-width: 1100px;
             width: 100%;
-            box-shadow: 0 20px 80px rgba(0,0,0,0.5);
-            backdrop-filter: blur(8px);
+            box-shadow: 0 25px 100px rgba(0,0,0,0.5), 0 0 60px rgba(102,126,234,0.15);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* ========== 标题区 ========== */
+        .title-area {
+            text-align: center;
+            margin-bottom: 30px;
+            position: relative;
+        }
+        .title-area::after {
+            content: '';
+            display: block;
+            width: 80px;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 2px;
+            margin: 12px auto 0;
         }
         h1 {
-            text-align: center;
-            color: #1a1a2e;
-            font-size: 26px;
-            margin-bottom: 6px;
+            font-size: 32px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: 2px;
         }
         .subtitle {
-            text-align: center;
-            color: #888;
+            color: #999;
             font-size: 14px;
-            margin-bottom: 25px;
+            margin-top: 6px;
+            letter-spacing: 1px;
         }
-        /* 工具栏 */
+
+        /* ========== 文件信息条 ========== */
+        .file-info {
+            display: none;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 16px;
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #eef2ff, #f0fdf4);
+            border-radius: 10px;
+            border: 1px solid #dde4ff;
+            animation: slideDown 0.3s ease;
+        }
+        .file-info .file-icon { font-size: 20px; }
+        .file-info .file-detail { flex: 1; }
+        .file-info .badge {
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            background: #667eea;
+            color: white;
+        }
+
+        /* ========== 工具栏 ========== */
         .toolbar {
             display: flex;
             flex-wrap: wrap;
             gap: 8px;
-            margin-bottom: 18px;
+            margin-bottom: 16px;
             align-items: center;
         }
         .toolbar button {
-            padding: 8px 16px;
+            padding: 9px 18px;
             border: none;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            color: white;
-            background: #667eea;
-        }
-        .toolbar button:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
-        .toolbar button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
-        .toolbar .btn-danger { background: #e74c3c; }
-        .toolbar .btn-success { background: #2ecc71; }
-        .toolbar .btn-warning { background: #f39c12; }
-        .toolbar .btn-info { background: #3498db; }
-        .toolbar .btn-purple { background: #9b59b6; }
-        .toolbar input[type="file"] { display: none; }
-        .toolbar label.file-label {
-            padding: 8px 16px;
-            background: #34495e;
-            color: white;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-        .toolbar label.file-label:hover { background: #2c3e50; }
-        .toolbar input[type="text"] {
-            padding: 8px 12px;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-            outline: none;
-            width: 180px;
-            transition: border 0.2s;
-        }
-        .toolbar input[type="text"]:focus { border-color: #667eea; }
-        .file-info {
-            font-size: 13px;
-            color: #555;
-            margin-bottom: 12px;
-            padding: 8px 12px;
-            background: #f0f2ff;
-            border-radius: 8px;
-            display: none;
-        }
-        /* 文本显示区域 */
-        .text-display {
-            background: #f8f9fa;
-            border: 1px solid #e0e0e0;
             border-radius: 10px;
-            padding: 12px 16px;
-            height: 350px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+        .toolbar button::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+        .toolbar button:hover::after { opacity: 1; }
+        .toolbar button:hover { transform: translateY(-2px); }
+        .toolbar button:active { transform: translateY(0); }
+        .toolbar button:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+        .toolbar button:disabled::after { display: none; }
+
+        /* 按钮配色 */
+        .btn-primary   { background: linear-gradient(135deg, #667eea, #5a67d8); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
+        .btn-danger    { background: linear-gradient(135deg, #e74c3c, #c0392b); box-shadow: 0 4px 12px rgba(231,76,60,0.4); }
+        .btn-success   { background: linear-gradient(135deg, #2ecc71, #27ae60); box-shadow: 0 4px 12px rgba(46,204,113,0.4); }
+        .btn-warning   { background: linear-gradient(135deg, #f39c12, #e67e22); box-shadow: 0 4px 12px rgba(243,156,18,0.4); }
+        .btn-info      { background: linear-gradient(135deg, #3498db, #2980b9); box-shadow: 0 4px 12px rgba(52,152,219,0.4); }
+        .btn-purple    { background: linear-gradient(135deg, #9b59b6, #8e44ad); box-shadow: 0 4px 12px rgba(155,89,182,0.4); }
+        .btn-teal      { background: linear-gradient(135deg, #1abc9c, #16a085); box-shadow: 0 4px 12px rgba(26,188,156,0.4); }
+        .btn-dark      { background: linear-gradient(135deg, #636e72, #2d3436); box-shadow: 0 4px 12px rgba(99,110,114,0.4); }
+        .btn-help      { background: linear-gradient(135deg, #a29bfe, #6c5ce7); box-shadow: 0 4px 12px rgba(108,92,231,0.4); }
+
+        .toolbar label.file-label {
+            padding: 9px 18px;
+            background: linear-gradient(135deg, #34495e, #2c3e50);
+            color: white;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.25s;
+            box-shadow: 0 4px 12px rgba(44,62,80,0.4);
+        }
+        .toolbar label.file-label:hover { transform: translateY(-2px); }
+
+        .toolbar input[type="file"] { display: none; }
+
+        .toolbar input[type="text"] {
+            padding: 9px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 13px;
+            outline: none;
+            width: 260px;
+            transition: all 0.3s;
+            background: #fafbff;
+        }
+        .toolbar input[type="text"]:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.15);
+            background: white;
+        }
+        .toolbar input[type="text"]::placeholder { color: #bbb; }
+
+        /* ========== 帮助面板 ========== */
+        .help-panel {
+            margin-bottom: 16px;
+            padding: 20px 24px;
+            background: linear-gradient(135deg, #fafbff, #f0f2ff);
+            border: 1px solid #e8e8f8;
+            border-radius: 14px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+        .help-panel h3 {
+            color: #333;
+            font-size: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .help-panel table {
+            width: 100%;
+            font-size: 13px;
+            border-collapse: separate;
+            border-spacing: 0 4px;
+        }
+        .help-panel th {
+            text-align: left;
+            padding: 6px 10px;
+            color: #555;
+            font-weight: 700;
+            background: #eef2ff;
+            border-radius: 6px;
+        }
+        .help-panel td {
+            padding: 6px 10px;
+            color: #666;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .help-panel tr:hover td { background: #f5f7ff; }
+
+        .tag {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            color: white;
+            font-weight: 600;
+        }
+        .tag-stack   { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+        .tag-queue   { background: linear-gradient(135deg, #3498db, #2980b9); }
+        .tag-list    { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+        .tag-tree    { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+        .tag-graph   { background: linear-gradient(135deg, #f39c12, #e67e22); }
+        .tag-array   { background: linear-gradient(135deg, #1abc9c, #16a085); }
+        .tag-string  { background: linear-gradient(135deg, #e67e22, #d35400); }
+        .tag-file    { background: linear-gradient(135deg, #636e72, #2d3436); }
+
+        /* ========== 文本显示区域 ========== */
+        .text-display {
+            background: #1e1e2e;
+            border: 1px solid #333350;
+            border-radius: 14px;
+            padding: 16px 20px;
+            height: 380px;
             overflow-y: auto;
             font-family: 'Consolas', 'Courier New', monospace;
             font-size: 13px;
-            line-height: 1.7;
+            line-height: 1.8;
             white-space: pre-wrap;
             word-break: break-all;
             position: relative;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.3);
         }
+        .text-display::-webkit-scrollbar { width: 8px; }
+        .text-display::-webkit-scrollbar-track { background: #2a2a40; border-radius: 4px; }
+        .text-display::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        .text-display::-webkit-scrollbar-thumb:hover { background: #777; }
+
+        .text-display .line {
+            display: flex;
+            padding: 1px 0;
+            border-radius: 4px;
+            transition: background 0.15s;
+        }
+        .text-display .line:hover { background: rgba(102,126,234,0.08); }
         .text-display .line-number {
-            color: #999;
+            color: #666;
             user-select: none;
-            margin-right: 12px;
+            margin-right: 14px;
+            min-width: 32px;
+            text-align: right;
+            font-size: 12px;
         }
+        .text-display .line-content { color: #e0e0e0; flex: 1; }
+
         .text-display .highlight {
             background: #ffdd57;
-            padding: 0 2px;
-            border-radius: 2px;
+            color: #333;
+            padding: 0 3px;
+            border-radius: 3px;
+            font-weight: 600;
         }
         .text-display .keyword-highlight {
-            background: #ff6b6b;
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
             color: white;
-            padding: 0 2px;
-            border-radius: 2px;
+            padding: 0 3px;
+            border-radius: 3px;
+            font-weight: 600;
         }
+        .text-display .empty-msg {
+            color: #666;
+            text-align: center;
+            margin-top: 140px;
+            font-size: 15px;
+        }
+        .text-display .empty-msg .icon { font-size: 40px; display: block; margin-bottom: 12px; }
+
+        /* ========== 状态栏 ========== */
         .status-bar {
-            margin-top: 12px;
-            padding: 8px 14px;
-            background: #e8f5e9;
-            border-radius: 8px;
+            margin-top: 14px;
+            padding: 10px 16px;
+            border-radius: 10px;
             font-size: 13px;
-            color: #2e7d32;
             display: none;
+            white-space: pre-line;
+            animation: slideDown 0.3s ease;
         }
-        .status-bar.error { background: #ffebee; color: #c62828; }
+        .status-bar.success {
+            background: linear-gradient(135deg, #e8f5e9, #dcedc8);
+            color: #2e7d32;
+            border: 1px solid #a5d6a7;
+        }
+        .status-bar.error {
+            background: linear-gradient(135deg, #ffebee, #ffcdd2);
+            color: #c62828;
+            border: 1px solid #ef9a9a;
+        }
+        .status-bar.info {
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            color: #1565c0;
+            border: 1px solid #90caf9;
+        }
+
+        /* ========== 底部 ========== */
         .footer {
-            margin-top: 18px;
+            margin-top: 20px;
             text-align: center;
             font-size: 12px;
-            color: #aaa;
+            color: #bbb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
         }
+        .footer .dot {
+            width: 6px; height: 6px;
+            background: #2ecc71;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 2s infinite;
+        }
+
+        /* ========== 动画 ========== */
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
+        /* ========== 提示框 ========== */
+        .alert-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 999;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.2s;
+        }
+        .alert-overlay.active { display: flex; }
+        .alert-box {
+            background: white;
+            border-radius: 16px;
+            padding: 28px 32px;
+            max-width: 520px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            animation: slideDown 0.3s ease;
+        }
+        .alert-box h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 12px;
+        }
+        .alert-box pre {
+            font-family: 'Consolas', monospace;
+            font-size: 13px;
+            color: #555;
+            background: #f5f6fa;
+            padding: 14px 16px;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 320px;
+            overflow-y: auto;
+            line-height: 1.6;
+        }
+        .alert-box button {
+            margin-top: 16px;
+            padding: 8px 28px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #667eea, #5a67d8);
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            float: right;
+            transition: all 0.2s;
+        }
+        .alert-box button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
     </style>
 </head>
 <body>
+
 <div class="container">
-    <h1>📄 文本处理工具</h1>
-    <p class="subtitle">咕咕嘎嘎，巴巴博一</p >
+    <!-- 标题 -->
+    <div class="title-area">
+        <h1>📄 文本处理工具</h1>
+        <p class="subtitle">咕咕嘎嘎，巴巴博一 · 数据结构课程设计</p >
+    </div>
 
     <!-- 工具栏 -->
     <div class="toolbar">
         <label class="file-label" for="fileInput">📂 选择文件</label>
         <input type="file" id="fileInput" accept=".txt">
-        <button id="btnShow" disabled>📋 显示内容</button>
+        <button id="btnShow" class="btn-primary" disabled>📋 显示</button>
         <button id="btnDelete" class="btn-danger" disabled>🗑️ 删除行</button>
         <button id="btnUndo" class="btn-warning" disabled>↩️ 撤销</button>
         <button id="btnSearch" class="btn-info" disabled>🔍 搜索</button>
         <button id="btnStats" class="btn-purple" disabled>📊 统计</button>
         <button id="btnFreq" class="btn-success" disabled>📈 词频</button>
-        <button id="btnHighlight" disabled>✨ 高亮</button>
+        <button id="btnHighlight" class="btn-danger" disabled>✨ 高亮</button>
+        <button id="btnInsert" class="btn-info" disabled>➕ 插入行</button>
+        <button id="btnLog" class="btn-purple" disabled>📝 日志</button>
+        <button id="btnCoocc" class="btn-warning" disabled>🕸️ 共现图</button>
         <button id="btnSave" class="btn-success" disabled>💾 保存</button>
-        <input type="text" id="inputField" placeholder="行号 / 关键词 / 高亮词(空格分隔)" style="flex:1;min-width:150px;">
+        <button id="btnHelp" class="btn-help">❓ 帮助</button>
+        <input type="text" id="inputField" placeholder="行号 / 关键词 / 高亮词(空格分隔) / 插入内容">
     </div>
 
     <!-- 文件信息 -->
-    <div class="file-info" id="fileInfo"></div>
+    <div class="file-info" id="fileInfo">
+        <span class="file-icon">📄</span>
+        <span class="file-detail" id="fileInfoDetail"></span>
+        <span class="badge" id="fileInfoBadge"></span>
+    </div>
+
+    <!-- 帮助面板 -->
+    <div class="help-panel" id="helpPanel">
+        <h3>📖 功能速查表</h3>
+        <table>
+            <tr><th>功能</th><th>输入格式</th><th>说明</th><th>数据结构</th></tr>
+            <tr><td>🗑️ 删除行</td><td><code>数字</code>，如 <code>3</code></td><td>删除指定行（可撤销）</td><td><span class="tag tag-array">线性表</span> + <span class="tag tag-stack">栈</span></td></tr>
+            <tr><td>↩️ 撤销</td><td>无需输入</td><td>恢复最近一次删除</td><td><span class="tag tag-stack">栈</span></td></tr>
+            <tr><td>🔍 搜索</td><td>输入关键词后回车</td><td>高亮含关键词的行</td><td><span class="tag tag-string">串匹配</span></td></tr>
+            <tr><td>📊 统计</td><td>无需输入</td><td>行数 / 字符数 / 均值</td><td><span class="tag tag-array">线性表遍历</span></td></tr>
+            <tr><td>📈 词频</td><td>无需输入</td><td>Trie 树统计词频 Top20</td><td><span class="tag tag-tree">Trie 树</span></td></tr>
+            <tr><td>✨ 高亮</td><td>多个词用空格分隔</td><td>多关键词同时高亮</td><td><span class="tag tag-list">链表</span></td></tr>
+            <tr><td>➕ 插入行</td><td><code>行号 内容</code></td><td>在指定行前插入</td><td><span class="tag tag-array">线性表</span></td></tr>
+            <tr><td>📝 日志</td><td>无需输入</td><td>最近 10 条操作记录</td><td><span class="tag tag-queue">循环队列</span></td></tr>
+            <tr><td>🕸️ 共现图</td><td>无需输入</td><td>相邻单词共现 Top10</td><td><span class="tag tag-graph">图(邻接表)</span></td></tr>
+            <tr><td>💾 保存</td><td>无需输入</td><td>下载处理后文件</td><td><span class="tag tag-file">文件 I/O</span></td></tr>
+        </table>
+    </div>
 
     <!-- 文本显示区域 -->
     <div class="text-display" id="textDisplay">
-        <p style="color:#aaa; text-align:center; margin-top:120px;">请选择一个 .txt 文件开始</p >
+        <div class="empty-msg">
+            <span class="icon">📂</span>
+            请选择一个 .txt 文件开始
+        </div>
     </div>
 
     <!-- 状态栏 -->
     <div class="status-bar" id="statusBar"></div>
 
-    <div class="footer">所有数据处理均在浏览器本地完成，不会上传任何文件。</div>
+    <div class="footer">
+        <span class="dot"></span>
+        所有数据处理均在浏览器本地完成，不会上传任何文件
+    </div>
+</div>
+
+<!-- 弹窗 -->
+<div class="alert-overlay" id="alertOverlay">
+    <div class="alert-box">
+        <h3 id="alertTitle">提示</h3>
+        <pre id="alertContent"></pre>
+        <button onclick="closeAlert()">确 认</button>
+        <div style="clear:both;"></div>
+    </div>
 </div>
 
 <script>
-// ===================== 核心数据结构（仿C语言版） =====================
+// ===================== 核心数据结构 =====================
+
+/** 线性表：存储文本行 */
 class Text {
-    constructor() {
-        this.lines = [];
-        this.count = 0;
-    }
+    constructor() { this.lines = []; this.count = 0; }
     load(content) {
-        this.lines = content.split('\n');
+        this.lines = content.split('\n').map(l => l.trimEnd());
         this.count = this.lines.length;
     }
-    getLine(idx) { return this.lines[idx] || ''; }
     deleteLine(idx) {
         if (idx < 0 || idx >= this.count) return false;
         this.lines.splice(idx, 1);
@@ -195,26 +490,72 @@ class Text {
         return true;
     }
     insertLine(idx, content) {
+        if (idx < 0 || idx > this.count) return false;
         this.lines.splice(idx, 0, content);
         this.count++;
+        return true;
     }
     toString() { return this.lines.join('\n'); }
 }
 
+/** 栈：撤销操作 */
 class UndoStack {
-    constructor() { this.stack = []; }
-    push(state) { this.stack.push(state); }
+    constructor(max = 50) { this.stack = []; this.max = max; }
+    push(s) {
+        if (this.stack.length >= this.max) this.stack.shift();
+        this.stack.push(s);
+    }
     pop() { return this.stack.pop(); }
     isEmpty() { return this.stack.length === 0; }
 }
 
-// Trie 树（词频统计）
-class TrieNode {
-    constructor() {
-        this.children = {};
-        this.freq = 0;
+/** 循环队列：操作日志 */
+class LogQueue {
+    constructor(size = 10) {
+        this.size = size;
+        this.msgs = new Array(size).fill(null);
+        this.front = 0; this.rear = 0; this.count = 0;
     }
+    push(msg) {
+        if (this.count >= this.size) {
+            this.msgs[this.front] = null;
+            this.front = (this.front + 1) % this.size;
+            this.count--;
+        }
+        this.msgs[this.rear] = msg;
+        this.rear = (this.rear + 1) % this.size;
+        this.count++;
+    }
+    getAll() {
+        let r = []; let idx = this.front;
+        for (let i = 0; i < this.count; i++) {
+            r.push(this.msgs[idx]);
+            idx = (idx + 1) % this.size;
+        }
+        return r;
+    }
+    isEmpty() { return this.count === 0; }
 }
+
+/** 链表：关键词高亮列表 */
+class KwList {
+    constructor() { this.head = null; this.cnt = 0; }
+    add(word) {
+        let cur = this.head;
+        while (cur) { if (cur.word === word) return; cur = cur.next; }
+        this.head = { word, next: this.head };
+        this.cnt++;
+    }
+    toArray() {
+        let r = []; let cur = this.head;
+        while (cur) { r.push(cur.word); cur = cur.next; }
+        return r;
+    }
+    clear() { this.head = null; this.cnt = 0; }
+}
+
+/** Trie 树：词频统计 */
+class TrieNode { constructor() { this.children = {}; this.freq = 0; } }
 class Trie {
     constructor() { this.root = new TrieNode(); }
     insert(word) {
@@ -233,49 +574,110 @@ class Trie {
             for (let ch in node.children) dfs(node.children[ch], prefix + ch);
         }
         dfs(this.root, '');
-        results.sort((a,b) => b.freq - a.freq || a.word.localeCompare(b.word));
+        results.sort((a, b) => b.freq - a.freq || a.word.localeCompare(b.word));
         return results;
+    }
+}
+
+/** 图：单词共现关系 */
+class Graph {
+    constructor() { this.vertices = []; this.edgeMap = new Map(); }
+    findVertex(word) {
+        for (let i = 0; i < this.vertices.length; i++)
+            if (this.vertices[i].word === word) return i;
+        return -1;
+    }
+    addVertex(word) {
+        let idx = this.findVertex(word);
+        if (idx !== -1) return idx;
+        this.vertices.push({ word, firstedge: null });
+        return this.vertices.length - 1;
+    }
+    addEdge(v1, v2) {
+        let key = `${Math.min(v1,v2)},${Math.max(v1,v2)}`;
+        this.edgeMap.set(key, (this.edgeMap.get(key) || 0) + 1);
+    }
+    buildFromText(t) {
+        this.vertices = []; this.edgeMap = new Map();
+        if (!t || t.count === 0) return;
+        for (let i = 0; i < t.count; i++) {
+            let buf = t.lines[i].replace(/[^\w\s]/g, ' ').toLowerCase();
+            let words = buf.split(/\s+/).filter(w => w.length > 0);
+            for (let j = 0; j < words.length - 1; j++) {
+                let v1 = this.addVertex(words[j]);
+                let v2 = this.addVertex(words[j + 1]);
+                this.addEdge(v1, v2);
+            }
+        }
+    }
+    getTopCoocc(n) {
+        let pairs = [];
+        this.edgeMap.forEach((w, k) => {
+            let [a, b] = k.split(',').map(Number);
+            pairs.push({ w1: this.vertices[a].word, w2: this.vertices[b].word, w });
+        });
+        pairs.sort((a, b) => b.w - a.w);
+        return pairs.slice(0, n);
     }
 }
 
 // ===================== 全局状态 =====================
 let txt = new Text();
 let undoStack = new UndoStack();
-let currentFilePath = '';  // 仅用于显示
+let logQueue = new LogQueue();
+let kwList = new KwList();
 let searchKeyword = '';
-let highlightKeywords = [];
+let currentFilePath = '';
 
-// DOM 引用
-const fileInput = document.getElementById('fileInput');
-const btnShow = document.getElementById('btnShow');
-const btnDelete = document.getElementById('btnDelete');
-const btnUndo = document.getElementById('btnUndo');
-const btnSearch = document.getElementById('btnSearch');
-const btnStats = document.getElementById('btnStats');
-const btnFreq = document.getElementById('btnFreq');
-const btnHighlight = document.getElementById('btnHighlight');
-const btnSave = document.getElementById('btnSave');
-const inputField = document.getElementById('inputField');
-const textDisplay = document.getElementById('textDisplay');
-const fileInfo = document.getElementById('fileInfo');
-const statusBar = document.getElementById('statusBar');
+// DOM
+const $ = id => document.getElementById(id);
+const fileInput    = $('fileInput');
+const btnShow      = $('btnShow');
+const btnDelete    = $('btnDelete');
+const btnUndo      = $('btnUndo');
+const btnSearch    = $('btnSearch');
+const btnStats     = $('btnStats');
+const btnFreq      = $('btnFreq');
+const btnHighlight = $('btnHighlight');
+const btnInsert    = $('btnInsert');
+const btnLog       = $('btnLog');
+const btnCoocc     = $('btnCoocc');
+const btnSave      = $('btnSave');
+const btnHelp      = $('btnHelp');
+const inputField   = $('inputField');
+const textDisplay  = $('textDisplay');
+const fileInfo     = $('fileInfo');
+const fileInfoDetail = $('fileInfoDetail');
+const fileInfoBadge   = $('fileInfoBadge');
+const statusBar    = $('statusBar');
+const helpPanel    = $('helpPanel');
+const alertOverlay = $('alertOverlay');
+const alertTitle   = $('alertTitle');
+const alertContent = $('alertContent');
 
 // ===================== 辅助函数 =====================
-function showStatus(msg, isError = false) {
+function showStatus(msg, type = 'success') {
     statusBar.textContent = msg;
-    statusBar.className = 'status-bar' + (isError ? ' error' : '');
+    statusBar.className = 'status-bar ' + type;
     statusBar.style.display = 'block';
-    setTimeout(() => { statusBar.style.display = 'none'; }, 3000);
+    setTimeout(() => { statusBar.style.display = 'none'; }, 4000);
 }
 
-function enableButtons(enabled) {
-    const btns = [btnShow, btnDelete, btnUndo, btnSearch, btnStats, btnFreq, btnHighlight, btnSave];
-    btns.forEach(b => b.disabled = !enabled);
+function showAlert(title, content) {
+    alertTitle.textContent = title;
+    alertContent.textContent = content;
+    alertOverlay.classList.add('active');
+}
+function closeAlert() { alertOverlay.classList.remove('active'); }
+
+function enableButtons(on) {
+    [btnShow, btnDelete, btnUndo, btnSearch, btnStats, btnFreq,
+     btnHighlight, btnInsert, btnLog, btnCoocc, btnSave].forEach(b => b.disabled = !on);
 }
 
 function renderText() {
     if (txt.count === 0) {
-        textDisplay.innerHTML = '<p style="color:#aaa;text-align:center;margin-top:120px;">文本为空</p >';
+        textDisplay.innerHTML = `<div class="empty-msg"><span class="icon">📂</span>请选择一个 .txt 文件开始</div>`;
         return;
     }
     let html = '';
@@ -283,190 +685,203 @@ function renderText() {
         let line = escapeHtml(txt.lines[i]);
         // 搜索高亮
         if (searchKeyword) {
-            const regex = new RegExp(`(${escapeRegExp(searchKeyword)})`, 'gi');
-            line = line.replace(regex, '<span class="highlight">$1</span>');
+            const re = new RegExp(`(${escapeRegExp(searchKeyword)})`, 'gi');
+            line = line.replace(re, '<span class="highlight">$1</span>');
         }
         // 关键词高亮
-        if (highlightKeywords.length > 0) {
-            for (let kw of highlightKeywords) {
-                if (!kw) continue;
-                const regex = new RegExp(`(${escapeRegExp(kw)})`, 'gi');
-                line = line.replace(regex, '<span class="keyword-highlight">$1</span>');
+        let kws = kwList.toArray();
+        if (kws.length > 0) {
+            for (let kw of kws) {
+                const re = new RegExp(`(${escapeRegExp(kw)})`, 'gi');
+                line = line.replace(re, '<span class="keyword-highlight">$1</span>');
             }
         }
-        html += `<div><span class="line-number">${String(i+1).padStart(3,' ')}.</span>${line}</div>`;
+        html += `<div class="line"><span class="line-number">${String(i+1).padStart(3,' ')}</span><span class="line-content">${line}</span></div>`;
     }
     textDisplay.innerHTML = html;
 }
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-function escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
 // ===================== 文件加载 =====================
 fileInput.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.name.endsWith('.txt')) {
-        showStatus('请选择 .txt 文件！', true);
+    if (!file.name.toLowerCase().endsWith('.txt')) {
+        showStatus('请选择 .txt 文件！', 'error');
         return;
     }
     const reader = new FileReader();
-    reader.onload = function(event) {
-        const content = event.target.result;
-        txt.load(content);
+    reader.onload = function(ev) {
+        txt.load(ev.target.result);
         undoStack = new UndoStack();
-        currentFilePath = file.name;
+        logQueue = new LogQueue();
+        kwList.clear();
         searchKeyword = '';
-        highlightKeywords = [];
-        fileInfo.textContent = `📄 ${file.name}  (${file.size} 字节, ${txt.count} 行)`;
-        fileInfo.style.display = 'block';
+        currentFilePath = file.name;
+        fileInfoDetail.textContent = `${file.name}  ·  ${file.size.toLocaleString()} 字节`;
+        fileInfoBadge.textContent = `${txt.count} 行`;
+        fileInfo.style.display = 'flex';
         enableButtons(true);
         renderText();
-        showStatus('文件加载成功！');
+        logQueue.push(`加载文件: ${file.name} (${txt.count}行)`);
+        showStatus('✅ 文件加载成功！');
     };
     reader.readAsText(file, 'UTF-8');
 });
 
 // ===================== 功能按钮 =====================
-// 显示内容
+
 btnShow.addEventListener('click', () => {
+    searchKeyword = '';
     renderText();
-    showStatus('已显示全部内容');
+    showStatus('📋 已显示全部内容');
 });
 
-// 删除行
 btnDelete.addEventListener('click', () => {
-    const val = inputField.value.trim();
-    const lineno = parseInt(val, 10);
-    if (isNaN(lineno) || lineno < 1 || lineno > txt.count) {
-        showStatus('请输入有效的行号 (1~' + txt.count + ')', true);
+    const v = inputField.value.trim();
+    const n = parseInt(v, 10);
+    if (isNaN(n) || n < 1 || n > txt.count) {
+        showStatus(`请输入有效行号 (1~${txt.count})`, 'error');
         return;
     }
-    // 保存状态用于撤销
-    undoStack.push({
-        idx: lineno - 1,
-        content: txt.lines[lineno - 1]
-    });
-    txt.deleteLine(lineno - 1);
+    undoStack.push({ idx: n - 1, content: txt.lines[n - 1] });
+    txt.deleteLine(n - 1);
+    logQueue.push(`删除第 ${n} 行`);
     renderText();
-    showStatus(`已删除第 ${lineno} 行`);
+    showStatus(`🗑️ 已删除第 ${n} 行`);
 });
 
-// 撤销
 btnUndo.addEventListener('click', () => {
-    if (undoStack.isEmpty()) {
-        showStatus('没有可撤销的操作', true);
-        return;
-    }
-    const state = undoStack.pop();
-    txt.insertLine(state.idx, state.content);
+    if (undoStack.isEmpty()) { showStatus('没有可撤销的操作', 'error'); return; }
+    const s = undoStack.pop();
+    txt.insertLine(s.idx, s.content);
+    logQueue.push(`撤销，恢复第 ${s.idx + 1} 行`);
     renderText();
-    showStatus(`撤销成功，已恢复第 ${state.idx + 1} 行`);
+    showStatus(`↩️ 撤销成功，已恢复第 ${s.idx + 1} 行`);
 });
 
-// 搜索
 btnSearch.addEventListener('click', () => {
-    const keyword = inputField.value.trim();
-    if (!keyword) {
-        showStatus('请输入搜索关键词', true);
-        return;
-    }
-    searchKeyword = keyword;
+    const kw = inputField.value.trim();
+    if (!kw) { showStatus('请输入搜索关键词', 'error'); return; }
+    searchKeyword = kw;
     renderText();
-    // 统计匹配行数
-    let count = 0;
-    for (let i = 0; i < txt.count; i++) {
-        if (txt.lines[i].toLowerCase().includes(keyword.toLowerCase())) count++;
-    }
-    showStatus(`搜索 "${keyword}" 完成，共匹配 ${count} 行`);
+    let c = 0;
+    for (let i = 0; i < txt.count; i++)
+        if (txt.lines[i].toLowerCase().includes(kw.toLowerCase())) c++;
+    logQueue.push(`搜索: "${kw}" (${c} 行匹配)`);
+    showStatus(`🔍 搜索 "${kw}" 完成，共匹配 ${c} 行`);
 });
 
-// 统计
 btnStats.addEventListener('click', () => {
-    let totalChars = 0;
-    for (let i = 0; i < txt.count; i++) totalChars += txt.lines[i].length;
-    const avg = txt.count > 0 ? (totalChars / txt.count).toFixed(1) : 0;
-    showStatus(`总行数: ${txt.count} | 总字符数: ${totalChars} | 平均每行: ${avg}`);
+    let tc = 0;
+    for (let i = 0; i < txt.count; i++) tc += txt.lines[i].length;
+    const avg = txt.count > 0 ? (tc / txt.count).toFixed(1) : 0;
+    logQueue.push('查看统计信息');
+    showStatus(`📊 总行数: ${txt.count}\n总字符数: ${tc}\n平均每行: ${avg}`);
 });
 
-// 词频
 btnFreq.addEventListener('click', () => {
     const trie = new Trie();
     for (let i = 0; i < txt.count; i++) {
-        // 提取单词（去标点）
         const cleaned = txt.lines[i].replace(/[^\w\s]/g, ' ').toLowerCase();
         const words = cleaned.split(/\s+/).filter(w => w.length > 0);
         for (let w of words) trie.insert(w);
     }
     const results = trie.collect();
-    if (results.length === 0) {
-        showStatus('文本中没有找到单词', true);
-        return;
-    }
-    // 显示前20个
-    let msg = `共 ${results.length} 个不同单词，前20：\n`;
-    for (let i = 0; i < Math.min(20, results.length); i++) {
-        msg += `${results[i].word}: ${results[i].freq}\n`;
-    }
-    // 在状态栏显示（由于状态栏较短，用 alert 或单独显示）
-    // 这里用 alert 简单处理
-    alert(msg);
-    showStatus(`词频统计完成，共 ${results.length} 个不同单词`);
+    if (results.length === 0) { showStatus('文本中没有找到单词', 'error'); return; }
+    let msg = `共 ${results.length} 个不同单词，前 20 名：\n\n`;
+    for (let i = 0; i < Math.min(20, results.length); i++)
+        msg += `${String(i+1).padStart(3)}. ${results[i].word.padEnd(20)} → ${results[i].freq} 次\n`;
+    logQueue.push(`词频统计 (${results.length}个单词)`);
+    showAlert('📈 词频统计结果', msg);
+    showStatus(`词频统计完成，共 ${results.length} 个不同单词`, 'info');
 });
 
-// 高亮
 btnHighlight.addEventListener('click', () => {
-    const val = inputField.value.trim();
-    if (!val) {
-        showStatus('请输入要高亮的关键词（空格分隔）', true);
-        return;
-    }
-    highlightKeywords = val.split(/\s+/).filter(k => k.length > 0);
-    if (highlightKeywords.length === 0) {
-        showStatus('无效的高亮词', true);
-        return;
-    }
+    const v = inputField.value.trim();
+    if (!v) { showStatus('请输入要高亮的关键词（空格分隔）', 'error'); return; }
+    kwList.clear();
+    let tokens = v.split(/\s+/).filter(k => k.length > 0);
+    for (let t of tokens) kwList.add(t);
     renderText();
-    showStatus(`已高亮 ${highlightKeywords.length} 个关键词`);
+    logQueue.push(`高亮关键词 (${kwList.cnt}个)`);
+    showStatus(`✨ 已高亮 ${kwList.cnt} 个关键词`);
 });
 
-// 保存
-btnSave.addEventListener('click', () => {
-    if (txt.count === 0) {
-        showStatus('没有内容可保存', true);
+btnInsert.addEventListener('click', () => {
+    const parts = inputField.value.trim().split(/\s+/);
+    if (parts.length < 2) { showStatus('格式：行号 + 空格 + 内容', 'error'); return; }
+    const n = parseInt(parts[0], 10);
+    const content = parts.slice(1).join(' ');
+    if (isNaN(n) || n < 1 || n > txt.count + 1) {
+        showStatus(`请输入有效行号 (1~${txt.count + 1})`, 'error');
         return;
     }
-    const content = txt.toString();
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    txt.insertLine(n - 1, content);
+    logQueue.push(`插入行 ${n}: "${content}"`);
+    renderText();
+    showStatus(`➕ 已在第 ${n} 行前插入`);
+});
+
+btnLog.addEventListener('click', () => {
+    if (logQueue.isEmpty()) { showStatus('暂无操作日志', 'error'); return; }
+    let msgs = logQueue.getAll();
+    let msg = `最近操作日志（共 ${msgs.length} 条）：\n\n`;
+    for (let i = 0; i < msgs.length; i++)
+        msg += `${String(i+1).padStart(3)}. ${msgs[i]}\n`;
+    showAlert('📝 操作日志', msg);
+    showStatus(`查看操作日志 (${msgs.length}条)`, 'info');
+});
+
+btnCoocc.addEventListener('click', () => {
+    let g = new Graph();
+    g.buildFromText(txt);
+    if (g.vertices.length === 0) { showStatus('文本为空，无法构建共现图', 'error'); return; }
+    let top = g.getTopCoocc(10);
+    if (top.length === 0) { showStatus('没有足够的相邻单词', 'error'); return; }
+    let msg = `单词共现图 Top ${top.length}：\n\n`;
+    for (let i = 0; i < top.length; i++)
+        msg += `${String(i+1).padStart(3)}. ${top[i].w1.padEnd(18)} ↔ ${top[i].w2.padEnd(18)} 共现 ${top[i].w} 次\n`;
+    logQueue.push('查看共现图');
+    showAlert('🕸️ 单词共现图', msg);
+    showStatus(`共现图构建完成，显示 Top ${top.length}`, 'info');
+});
+
+btnSave.addEventListener('click', () => {
+    if (txt.count === 0) { showStatus('没有内容可保存', 'error'); return; }
+    const blob = new Blob([txt.toString()], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    const baseName = currentFilePath ? currentFilePath.replace('.txt','') : 'output';
-    a.download = `${baseName}_processed.txt`;
+    const bn = currentFilePath ? currentFilePath.replace(/\.txt$/i, '') : 'output';
+    a.download = `${bn}_processed.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    showStatus('文件已保存下载');
+    logQueue.push(`保存文件: ${bn}_processed.txt`);
+    showStatus('💾 文件已保存下载');
 });
 
-// 回车键快捷操作（搜索/高亮/删除行）
+// 帮助
+btnHelp.addEventListener('click', () => {
+    helpPanel.style.display = helpPanel.style.display === 'block' ? 'none' : 'block';
+});
+
+// 回车键智能分发
 inputField.addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
-        // 默认执行搜索
-        btnSearch.click();
+        const v = inputField.value.trim();
+        if (/^\d+$/.test(v)) btnDelete.click();
+        else if (v.length > 0) btnSearch.click();
     }
 });
 
-// 初始化禁用按钮
+// 初始化
 enableButtons(false);
 </script>
 </body>
 </html>
+```
