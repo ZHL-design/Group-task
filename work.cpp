@@ -10,20 +10,20 @@
 #define COLOR_RED   "\033[31m"
 #define COLOR_RESET "\033[0m"
 
-/* ---------- ×Ô¶¨Òå strdup ---------- */
+/* ---------- è‡ªå®šä¹‰ strdup ---------- */
 char* my_strdup(const char* s) {
     if (s == NULL) return NULL;
     size_t len = strlen(s);
     char* copy = (char*)malloc(len + 1);
     if (copy == NULL) {
-        printf("´íÎó£ºÄÚ´æ·ÖÅäÊ§°Ü£¡\n");
+        printf("é”™è¯¯ï¼šå†…å­˜åˆ†é…å¤±è´¥ï¼\n");
         exit(1);
     }
     strcpy(copy, s);
     return copy;
 }
 
-/* ---------- Êı¾İ½á¹¹ ---------- */
+/* ---------- æ•°æ®ç»“æ„ ---------- */
 typedef struct {
     char** lines;
     int count;
@@ -60,15 +60,41 @@ typedef struct {
     int cnt;
 } KwList;
 
-/* ---------- ¸¨Öúºê£º°²È«À©Èİ ---------- */
+/* ---------- æ–°å¢ï¼šæ“ä½œæ—¥å¿—é˜Ÿåˆ— ---------- */
+#define LOG_QUEUE_SIZE 10
+
+typedef struct {
+    char* msgs[LOG_QUEUE_SIZE];
+    int front, rear, count;
+} LogQueue;
+
+/* ---------- æ–°å¢ï¼šå•è¯å…±ç°å›¾ ---------- */
+typedef struct EdgeNode {
+    int adjvex;
+    int weight;
+    struct EdgeNode* next;
+} EdgeNode;
+
+typedef struct Vertex {
+    char* word;
+    EdgeNode* firstedge;
+} Vertex;
+
+typedef struct {
+    Vertex* vertices;
+    int capacity;
+    int count;
+} Graph;
+
+/* ---------- è¾…åŠ©å®ï¼šå®‰å…¨æ‰©å®¹ ---------- */
 #define GROW_ARRAY(ptr, old_cap, new_cap, type) do { \
     type* _tmp = (type*)realloc(ptr, sizeof(type) * (new_cap)); \
-    if (!_tmp) { fprintf(stderr, "ÄÚ´æ²»×ã\n"); exit(1); } \
+    if (!_tmp) { fprintf(stderr, "å†…å­˜ä¸è¶³\n"); exit(1); } \
     ptr = _tmp; \
     old_cap = new_cap; \
 } while(0)
 
-/* ---------- Text ²Ù×÷ ---------- */
+/* ---------- Text æ“ä½œ ---------- */
 Text* text_new(void) {
     Text* t = (Text*)malloc(sizeof(Text));
     t->lines = (char**)calloc(INIT_CAPACITY, sizeof(char*));
@@ -78,31 +104,32 @@ Text* text_new(void) {
 }
 
 void text_load(Text* t, const char* fn) {
-    FILE* f = fopen(fn, "r");
-    if (!f) { printf("ÎŞ·¨´ò¿ªÎÄ¼ş£º%s\n", fn); return; }
+    FILE* f = fopen(fn, "rb");  // ä½¿ç”¨äºŒè¿›åˆ¶æ¨¡å¼è¯»å–ï¼Œé˜²æ­¢ä¸­æ–‡ä¹±ç 
+    if (!f) { printf("æ— æ³•æ‰“å¼€æ–‡ä»¶ï¼š%s\n", fn); return; }
     char buf[1024];
     while (fgets(buf, sizeof buf, f)) {
+        // å»æ‰è¡Œå°¾çš„ \r\n æˆ– \n
+        buf[strcspn(buf, "\r\n")] = '\0';
         if (t->count >= t->cap)
             GROW_ARRAY(t->lines, t->cap, t->cap * 2, char*);
-        buf[strcspn(buf, "\n")] = '\0';
         t->lines[t->count++] = my_strdup(buf);
     }
     fclose(f);
-    printf("ÎÄ¼ş¼ÓÔØ³É¹¦£¬¹² %d ĞĞ¡£\n", t->count);
+    printf("æ–‡ä»¶åŠ è½½æˆåŠŸï¼Œå…± %d è¡Œã€‚\n", t->count);
 }
 
 void text_show(const Text* t) {
-    if (!t || t->count == 0) { printf("ÎÄ±¾Îª¿Õ£¡\n"); return; }
-    printf("=== ÎÄ±¾ÄÚÈİ [%dĞĞ] ===\n", t->count);
+    if (!t || t->count == 0) { printf("æ–‡æœ¬ä¸ºç©ºï¼\n"); return; }
+    printf("=== æ–‡æœ¬å†…å®¹ [%dè¡Œ] ===\n", t->count);
     for (int i = 0; i < t->count; i++)
         printf("%3d: %s\n", i + 1, t->lines[i]);
-    puts("=== ½áÊø ===");
+    puts("=== ç»“æŸ ===");
 }
 
-/* ---------- ±£´æµ½ĞÂÎÄ¼ş£¨ÔÚÔ­Â·¾¶¸½½ü£© ---------- */
+/* ---------- ä¿å­˜åˆ°æ–°æ–‡ä»¶ ---------- */
 void text_save_as(const Text* t, const char* original_fn) {
     if (!t || t->count == 0) {
-        printf("ÎÄ±¾Îª¿Õ£¬ÎŞ·¨±£´æ¡£\n");
+        printf("æ–‡æœ¬ä¸ºç©ºï¼Œæ— æ³•ä¿å­˜ã€‚\n");
         return;
     }
 
@@ -120,7 +147,7 @@ void text_save_as(const Text* t, const char* original_fn) {
 
     FILE* f = fopen(new_fn, "w");
     if (!f) {
-        printf("ÎŞ·¨´´½¨ĞÂÎÄ¼ş£º%s\n", new_fn);
+        printf("æ— æ³•åˆ›å»ºæ–°æ–‡ä»¶ï¼š%s\n", new_fn);
         return;
     }
 
@@ -128,7 +155,7 @@ void text_save_as(const Text* t, const char* original_fn) {
         fprintf(f, "%s\n", t->lines[i]);
     }
     fclose(f);
-    printf("´¦Àí½á¹ûÒÑ±£´æÖÁ£º%s\n", new_fn);
+    printf("å¤„ç†ç»“æœå·²ä¿å­˜è‡³ï¼š%s\n", new_fn);
 }
 
 void text_free(Text* t) {
@@ -138,7 +165,7 @@ void text_free(Text* t) {
     free(t);
 }
 
-/* ---------- ³·ÏúÕ» ---------- */
+/* ---------- æ’¤é”€æ ˆ ---------- */
 void undostack_init(UndoStack* s) { s->top = -1; memset(s->recs, 0, sizeof(s->recs)); }
 
 void undostack_free(UndoStack* s) {
@@ -156,19 +183,19 @@ static int save_state(Text* t, UndoStack* s, int idx) {
 int text_delete(Text* t, int lineno, UndoStack* s) {
     int idx = lineno - 1;
     if (idx < 0 || idx >= t->count) {
-        printf("ĞĞºÅÎŞĞ§£¡ÓĞĞ§·¶Î§£º1~%d\n", t->count);
+        printf("è¡Œå·æ— æ•ˆï¼æœ‰æ•ˆèŒƒå›´ï¼š1~%d\n", t->count);
         return 0;
     }
     if (!save_state(t, s, idx)) return 0;
     free(t->lines[idx]);
     memmove(t->lines + idx, t->lines + idx + 1, (t->count - idx - 1) * sizeof(char*));
     t->count--;
-    printf("ÒÑÉ¾³ıµÚ %d ĞĞ\n", lineno);
+    printf("å·²åˆ é™¤ç¬¬ %d è¡Œ\n", lineno);
     return 1;
 }
 
 int text_undo(Text* t, UndoStack* s) {
-    if (s->top < 0) { puts("Ã»ÓĞ¿É³·ÏúµÄ²Ù×÷"); return 0; }
+    if (s->top < 0) { puts("æ²¡æœ‰å¯æ’¤é”€çš„æ“ä½œ"); return 0; }
     UndoRec* r = &s->recs[s->top];
     if (r->line_idx < 0 || r->line_idx > t->count) {
         free(r->content); s->top--; return 0;
@@ -181,19 +208,35 @@ int text_undo(Text* t, UndoStack* s) {
     t->count++;
     free(r->content);
     s->top--;
-    printf("³·Ïú³É¹¦£¬ÒÑ»Ö¸´µÚ %d ĞĞ\n", r->line_idx + 1);
+    printf("æ’¤é”€æˆåŠŸï¼Œå·²æ¢å¤ç¬¬ %d è¡Œ\n", r->line_idx + 1);
     return 1;
 }
 
-/* ---------- ËÑË÷ÓëÍ³¼Æ ---------- */
+/* ---------- æ–°å¢ï¼šè¡Œæ’å…¥ï¼ˆçº¿æ€§è¡¨æ“ä½œï¼‰ ---------- */
+int text_insert(Text* t, int lineno, const char* content) {
+    int idx = lineno - 1;
+    if (idx < 0 || idx > t->count) {
+        printf("è¡Œå·æ— æ•ˆï¼æœ‰æ•ˆèŒƒå›´ï¼š1~%dï¼ˆä¹Ÿå¯åœ¨æœ«å°¾æ’å…¥ï¼Œè¡Œå·ä¸º%dï¼‰\n", t->count, t->count+1);
+        return 0;
+    }
+    if (t->count >= t->cap)
+        GROW_ARRAY(t->lines, t->cap, t->cap * 2, char*);
+    memmove(t->lines + idx + 1, t->lines + idx, (t->count - idx) * sizeof(char*));
+    t->lines[idx] = my_strdup(content);
+    t->count++;
+    printf("å·²åœ¨ç¬¬ %d è¡Œå‰æ’å…¥ä¸€è¡Œã€‚\n", lineno);
+    return 1;
+}
+
+/* ---------- æœç´¢ä¸ç»Ÿè®¡ ---------- */
 void text_find(const Text* t, const char* pat) {
-    if (!t || t->count == 0) { puts("ÎÄ±¾Îª¿Õ£¬ÎŞ·¨ËÑË÷¡£"); return; }
+    if (!t || t->count == 0) { puts("æ–‡æœ¬ä¸ºç©ºï¼Œæ— æ³•æœç´¢ã€‚"); return; }
     int found = 0;
-    printf("\n=== ËÑË÷ \"%s\" µÄ½á¹û ===\n", pat);
+    printf("\n=== æœç´¢ \"%s\" çš„ç»“æœ ===\n", pat);
     for (int i = 0; i < t->count; i++)
         if (strstr(t->lines[i], pat))
-            printf("µÚ %d ĞĞ: %s\n", i + 1, t->lines[i]), found++;
-    if (!found) printf("Î´ÕÒµ½°üº¬ \"%s\" µÄĞĞ¡£\n", pat);
+            printf("ç¬¬ %d è¡Œ: %s\n", i + 1, t->lines[i]), found++;
+    if (!found) printf("æœªæ‰¾åˆ°åŒ…å« \"%s\" çš„è¡Œã€‚\n", pat);
     puts("========================");
 }
 
@@ -201,14 +244,14 @@ void text_stats(const Text* t) {
     int lines = t ? t->count : 0;
     int chars = 0;
     for (int i = 0; i < lines; i++) chars += strlen(t->lines[i]);
-    printf("\n========== Í³¼ÆĞÅÏ¢ ==========\n");
-    printf("×ÜĞĞÊı: %d\n", lines);
-    printf("×Ü×Ö·ûÊı: %d (²»º¬»»ĞĞ·û)\n", chars);
-    if (lines > 0) printf("Æ½¾ùÃ¿ĞĞ×Ö·ûÊı: %.1f\n", (double)chars / lines);
+    printf("\n========== ç»Ÿè®¡ä¿¡æ¯ ==========\n");
+    printf("æ€»è¡Œæ•°: %d\n", lines);
+    printf("æ€»å­—ç¬¦æ•°: %d (ä¸å«æ¢è¡Œç¬¦)\n", chars);
+    if (lines > 0) printf("å¹³å‡æ¯è¡Œå­—ç¬¦æ•°: %.1f\n", (double)chars / lines);
     puts("==============================");
 }
 
-/* ---------- ´ÊÆµÍ³¼Æ£¨Trie£© ---------- */
+/* ---------- è¯é¢‘ç»Ÿè®¡ï¼ˆTrieï¼‰ ---------- */
 TrieNode* trie_new(void) {
     TrieNode* n = (TrieNode*)calloc(1, sizeof(TrieNode));
     return n;
@@ -218,7 +261,7 @@ void trie_insert(TrieNode* root, const char* w) {
     TrieNode* cur = root;
     for (; *w; w++) {
         int idx = tolower(*w) - 'a';
-        if (idx < 0 || idx >= 25) continue;
+        if (idx < 0 || idx >= 26) continue;
         if (!cur->child[idx]) cur->child[idx] = trie_new();
         cur = cur->child[idx];
     }
@@ -279,16 +322,16 @@ void text_wordfreq(const Text* t, WordFreq** out, int* out_n) {
 void text_showfreq(const Text* t) {
     WordFreq* list; int n;
     text_wordfreq(t, &list, &n);
-    if (n == 0) { puts("ÎÄ±¾ÖĞÃ»ÓĞµ¥´Ê»òÎÄ±¾Îª¿Õ¡£"); return; }
-    printf("\n========== ´ÊÆµÍ³¼Æ½á¹û£¨»ùÓÚTrieÊ÷£© ==========\n");
-    printf("¹² %d ¸ö²»Í¬µÄµ¥´Ê\n", n);
-    puts("µ¥´Ê\t\tÆµÂÊ\n------------------------");
+    if (n == 0) { puts("æ–‡æœ¬ä¸­æ²¡æœ‰å•è¯æˆ–æ–‡æœ¬ä¸ºç©ºã€‚"); return; }
+    printf("\n========== è¯é¢‘ç»Ÿè®¡ç»“æœï¼ˆåŸºäºTrieæ ‘ï¼‰ ==========\n");
+    printf("å…± %d ä¸ªä¸åŒçš„å•è¯\n", n);
+    puts("å•è¯\t\té¢‘ç‡\n------------------------");
     for (int i = 0; i < n; i++) printf("%-20s %d\n", list[i].word, list[i].freq);
     puts("================================================");
     free(list);
 }
 
-/* ---------- ¹Ø¼ü´Ê¸ßÁÁ£¨Á´±í£© ---------- */
+/* ---------- å…³é”®è¯é«˜äº®ï¼ˆé“¾è¡¨ï¼‰ ---------- */
 KwList* kwlist_new(void) {
     KwList* k = (KwList*)malloc(sizeof(KwList));
     k->head = NULL; k->cnt = 0;
@@ -317,9 +360,9 @@ void kwlist_free(KwList* k) {
 }
 
 void text_highlight(const Text* t, const KwList* k) {
-    if (!t || t->count == 0) { puts("ÎÄ±¾Îª¿Õ£¡"); return; }
+    if (!t || t->count == 0) { puts("æ–‡æœ¬ä¸ºç©ºï¼"); return; }
     if (!k->head) { text_show(t); return; }
-    printf("=== ¶à¹Ø¼ü´Ê¸ßÁÁÏÔÊ¾ [%dĞĞ] ===\n", t->count);
+    printf("=== å¤šå…³é”®è¯é«˜äº®æ˜¾ç¤º [%dè¡Œ] ===\n", t->count);
     for (int i = 0; i < t->count; i++) {
         const char* s = t->lines[i];
         printf("%3d: ", i + 1);
@@ -343,43 +386,205 @@ void text_highlight(const Text* t, const KwList* k) {
         }
         putchar('\n');
     }
-    puts("=== ½áÊø ===");
+    puts("=== ç»“æŸ ===");
 }
 
-/* ---------- Ö÷³ÌĞò ---------- */
+/* ---------- æ–°å¢ï¼šæ“ä½œæ—¥å¿—é˜Ÿåˆ— ---------- */
+void logqueue_init(LogQueue* q) {
+    q->front = q->rear = q->count = 0;
+}
+
+void logqueue_push(LogQueue* q, const char* msg) {
+    if (q->count >= LOG_QUEUE_SIZE) {
+        free(q->msgs[q->front]);
+        q->front = (q->front + 1) % LOG_QUEUE_SIZE;
+        q->count--;
+    }
+    q->msgs[q->rear] = my_strdup(msg);
+    q->rear = (q->rear + 1) % LOG_QUEUE_SIZE;
+    q->count++;
+}
+
+void logqueue_show(const LogQueue* q) {
+    if (q->count == 0) {
+        puts("æ—¥å¿—ä¸ºç©ºã€‚");
+        return;
+    }
+    printf("\n=== æœ€è¿‘æ“ä½œæ—¥å¿— (å…±%dæ¡) ===\n", q->count);
+    int idx = q->front;
+    for (int i = 0; i < q->count; i++) {
+        printf("  %s\n", q->msgs[idx]);
+        idx = (idx + 1) % LOG_QUEUE_SIZE;
+    }
+    puts("==============================");
+}
+
+void logqueue_free(LogQueue* q) {
+    while (q->count > 0) {
+        free(q->msgs[q->front]);
+        q->front = (q->front + 1) % LOG_QUEUE_SIZE;
+        q->count--;
+    }
+}
+
+/* ---------- æ–°å¢ï¼šå•è¯å…±ç°å›¾ ---------- */
+void graph_init(Graph* g) {
+    g->capacity = 100;
+    g->count = 0;
+    g->vertices = (Vertex*)calloc(g->capacity, sizeof(Vertex));
+}
+
+int graph_find_vertex(Graph* g, const char* word) {
+    for (int i = 0; i < g->count; i++)
+        if (strcmp(g->vertices[i].word, word) == 0)
+            return i;
+    return -1;
+}
+
+int graph_add_vertex(Graph* g, const char* word) {
+    int idx = graph_find_vertex(g, word);
+    if (idx != -1) return idx;
+    if (g->count >= g->capacity) {
+        g->capacity *= 2;
+        g->vertices = (Vertex*)realloc(g->vertices, sizeof(Vertex) * g->capacity);
+    }
+    g->vertices[g->count].word = my_strdup(word);
+    g->vertices[g->count].firstedge = NULL;
+    return g->count++;
+}
+
+void graph_add_edge(Graph* g, int v1, int v2) {
+    EdgeNode* e = (EdgeNode*)malloc(sizeof(EdgeNode));
+    e->adjvex = v2;
+    e->weight = 1;
+    e->next = g->vertices[v1].firstedge;
+    g->vertices[v1].firstedge = e;
+
+    e = (EdgeNode*)malloc(sizeof(EdgeNode));
+    e->adjvex = v1;
+    e->weight = 1;
+    e->next = g->vertices[v2].firstedge;
+    g->vertices[v2].firstedge = e;
+}
+
+void graph_increase_weight(Graph* g, int v1, int v2) {
+    for (EdgeNode* e = g->vertices[v1].firstedge; e; e = e->next)
+        if (e->adjvex == v2) { e->weight++; return; }
+    graph_add_edge(g, v1, v2);
+}
+
+typedef struct {
+    char word1[256];
+    char word2[256];
+    int weight;
+} CooccPair;
+
+static int cmp_coocc(const void* a, const void* b) {
+    return ((CooccPair*)b)->weight - ((CooccPair*)a)->weight;
+}
+
+void graph_build_from_text(Graph* g, const Text* t) {
+    graph_init(g);
+    if (!t || t->count == 0) return;
+    for (int i = 0; i < t->count; i++) {
+        char buf[1024];
+        strcpy(buf, t->lines[i]);
+        for (char* p = buf; *p; p++) if (ispunct(*p)) *p = ' ';
+        char* words[256];
+        int wn = 0;
+        char* tok = strtok(buf, " \t");
+        while (tok && wn < 256) {
+            if (strlen(tok) > 0) words[wn++] = tok;
+            tok = strtok(NULL, " \t");
+        }
+        for (int j = 0; j < wn - 1; j++) {
+            int v1 = graph_add_vertex(g, words[j]);
+            int v2 = graph_add_vertex(g, words[j+1]);
+            graph_increase_weight(g, v1, v2);
+        }
+    }
+}
+
+void graph_show_top_coocc(Graph* g, int top_n) {
+    if (g->count == 0) { puts("å›¾ä¸ºç©ºã€‚"); return; }
+    int max_edges = g->count * 10;
+    CooccPair* pairs = (CooccPair*)malloc(sizeof(CooccPair) * max_edges);
+    int pcnt = 0;
+    for (int v = 0; v < g->count; v++) {
+        for (EdgeNode* e = g->vertices[v].firstedge; e; e = e->next) {
+            if (v < e->adjvex) {
+                if (pcnt >= max_edges) break;
+                strcpy(pairs[pcnt].word1, g->vertices[v].word);
+                strcpy(pairs[pcnt].word2, g->vertices[e->adjvex].word);
+                pairs[pcnt].weight = e->weight;
+                pcnt++;
+            }
+        }
+    }
+    qsort(pairs, pcnt, sizeof(CooccPair), cmp_coocc);
+    printf("\n=== å•è¯å…±ç°å›¾ Top %d ===\n", top_n);
+    int show = pcnt < top_n ? pcnt : top_n;
+    for (int i = 0; i < show; i++)
+        printf("  %s -- %s  å…±ç° %d æ¬¡\n", pairs[i].word1, pairs[i].word2, pairs[i].weight);
+    puts("=========================");
+    free(pairs);
+}
+
+void graph_free(Graph* g) {
+    for (int i = 0; i < g->count; i++) {
+        EdgeNode* e = g->vertices[i].firstedge;
+        while (e) {
+            EdgeNode* tmp = e;
+            e = e->next;
+            free(tmp);
+        }
+        free(g->vertices[i].word);
+    }
+    free(g->vertices);
+}
+
+/* ---------- ä¸»ç¨‹åº ---------- */
 int main(void) {
-    // ÉèÖÃ¿ØÖÆÌ¨Êä³ö±àÂëÎª UTF-8
-//    SetConsoleOutputCP(65001);
-//    SetConsoleCP(65001);
+    // å¦‚æœä½ å¸Œæœ›æ§åˆ¶å°æ­£ç¡®æ˜¾ç¤ºUTF-8ï¼Œå¯ä»¥å–æ¶ˆä¸‹é¢ä¸¤è¡Œçš„æ³¨é‡Š
+    // SetConsoleOutputCP(65001);
+    // SetConsoleCP(65001);
     
     Text* txt = text_new();
     UndoStack undo;
     undostack_init(&undo);
     KwList* kw = kwlist_new();
+    LogQueue logq;
+    logqueue_init(&logq);
 
     char fn[1024];
-    printf("ÇëÊäÈëÎÄ¼şÂ·¾¶: ");
+    printf("è¯·è¾“å…¥æ–‡ä»¶è·¯å¾„: ");
     if (!fgets(fn, sizeof fn, stdin)) return 1;
     fn[strcspn(fn, "\n")] = '\0';
     if (strlen(fn) == 0) {
-        printf("Î´ÊäÈëÂ·¾¶£¬ÍË³ö¡£\n");
+        printf("æœªè¾“å…¥è·¯å¾„ï¼Œé€€å‡ºã€‚\n");
         text_free(txt);
         kwlist_free(kw);
+        logqueue_free(&logq);
         return 1;
     }
 
     text_load(txt, fn);
     if (txt->count == 0) {
-        printf("ÎÄ¼şÎª¿Õ»ò¼ÓÔØÊ§°Ü£¬ÍË³ö¡£\n");
+        printf("æ–‡ä»¶ä¸ºç©ºæˆ–åŠ è½½å¤±è´¥ï¼Œé€€å‡ºã€‚\n");
         text_free(txt);
         kwlist_free(kw);
+        logqueue_free(&logq);
         return 1;
     }
     text_show(txt);
 
+    char logbuf[128];
+    snprintf(logbuf, sizeof logbuf, "åŠ è½½æ–‡ä»¶: %s (%dè¡Œ)", fn, txt->count);
+    logqueue_push(&logq, logbuf);
+
     char line[512];
     while (1) {
-        printf("\nÃüÁî: d <ĞĞºÅ>(É¾³ı), u(³·Ïú), s(ÏÔÊ¾/¸ßÁÁ), f <´Ê>(ËÑË÷), c(Í³¼Æ), w(´ÊÆµ), h(ÉèÖÃ¸ßÁÁ¹Ø¼ü´Ê), p(±£´æµ½ĞÂÎÄ¼ş), q(ÍË³ö): ");
+        printf("\nå‘½ä»¤: d <è¡Œå·>(åˆ é™¤), u(æ’¤é”€), s(æ˜¾ç¤º/é«˜äº®), f <è¯>(æœç´¢), c(ç»Ÿè®¡), w(è¯é¢‘), h(è®¾ç½®é«˜äº®å…³é”®è¯), p(ä¿å­˜åˆ°æ–°æ–‡ä»¶), ins <è¡Œå·> <å†…å®¹>(æ’å…¥), log(æ“ä½œæ—¥å¿—), co(å…±ç°å›¾Top10), q(é€€å‡º): ");
         if (!fgets(line, sizeof line, stdin)) break;
         line[strcspn(line, "\n")] = '\0';
         if (strlen(line) == 0) continue;
@@ -393,11 +598,15 @@ int main(void) {
             int ln;
             if (sscanf(arg, "%d", &ln) == 1) {
                 text_delete(txt, ln, &undo);
+                snprintf(logbuf, sizeof logbuf, "åˆ é™¤ç¬¬ %d è¡Œ", ln);
+                logqueue_push(&logq, logbuf);
                 text_show(txt);
-            } else puts("ÇëÊäÈëÊı×ÖĞĞºÅ£¡");
+            } else puts("è¯·è¾“å…¥æ•°å­—è¡Œå·ï¼");
         }
         else if (!strcmp(cmd, "u")) {
             text_undo(txt, &undo);
+            snprintf(logbuf, sizeof logbuf, "æ’¤é”€ä¸€æ¬¡æ“ä½œ");
+            logqueue_push(&logq, logbuf);
             text_show(txt);
         }
         else if (!strcmp(cmd, "s")) {
@@ -405,7 +614,7 @@ int main(void) {
         }
         else if (!strcmp(cmd, "f")) {
             if (strlen(arg)) text_find(txt, arg);
-            else puts("ÇëÊäÈëËÑË÷¹Ø¼ü´Ê£¡");
+            else puts("è¯·è¾“å…¥æœç´¢å…³é”®è¯ï¼");
         }
         else if (!strcmp(cmd, "c")) {
             text_stats(txt);
@@ -415,23 +624,48 @@ int main(void) {
         }
         else if (!strcmp(cmd, "h")) {
             kwlist_free(kw);
-            printf("ÇëÊäÈë¶à¸ö¹Ø¼ü´Ê£¨¿Õ¸ñ·Ö¸ô£©: ");
+            printf("è¯·è¾“å…¥å¤šä¸ªå…³é”®è¯ï¼ˆç©ºæ ¼åˆ†éš”ï¼‰: ");
             if (fgets(line, sizeof line, stdin)) {
                 line[strcspn(line, "\n")] = '\0';
                 char* tok = strtok(line, " ");
                 while (tok) { kwlist_add(kw, tok); tok = strtok(NULL, " "); }
             }
-            printf("ÒÑÉèÖÃ %d ¸ö¸ßÁÁ¹Ø¼ü´Ê¡£\n", kw->cnt);
+            printf("å·²è®¾ç½® %d ä¸ªé«˜äº®å…³é”®è¯ã€‚\n", kw->cnt);
+            snprintf(logbuf, sizeof logbuf, "è®¾ç½®é«˜äº®å…³é”®è¯ (%dä¸ª)", kw->cnt);
+            logqueue_push(&logq, logbuf);
         }
         else if (!strcmp(cmd, "p")) {
             text_save_as(txt, fn);
+            snprintf(logbuf, sizeof logbuf, "ä¿å­˜åˆ°æ–°æ–‡ä»¶");
+            logqueue_push(&logq, logbuf);
+        }
+        else if (!strcmp(cmd, "ins")) {
+            int ln;
+            char content[256];
+            if (sscanf(line, "%*s %d %[^\n]", &ln, content) == 2) {
+                if (text_insert(txt, ln, content)) {
+                    snprintf(logbuf, sizeof logbuf, "æ’å…¥è¡Œ %d: %s", ln, content);
+                    logqueue_push(&logq, logbuf);
+                    text_show(txt);
+                }
+            } else puts("ç”¨æ³•: ins <è¡Œå·> <å†…å®¹>");
+        }
+        else if (!strcmp(cmd, "log")) {
+            logqueue_show(&logq);
+        }
+        else if (!strcmp(cmd, "co")) {
+            Graph coocc_graph;
+            graph_build_from_text(&coocc_graph, txt);
+            graph_show_top_coocc(&coocc_graph, 10);
+            graph_free(&coocc_graph);
         }
         else if (!strcmp(cmd, "q")) break;
-        else printf("Î´ÖªÃüÁî£¡¿ÉÓÃ: d, u, s, f, c, w, h, p, q\n");
+        else printf("æœªçŸ¥å‘½ä»¤ï¼å¯ç”¨: d, u, s, f, c, w, h, p, ins, log, co, q\n");
     }
 
     kwlist_free(kw);
     undostack_free(&undo);
+    logqueue_free(&logq);
     text_free(txt);
     return 0;
 }
